@@ -52,10 +52,10 @@ public final class GUIConstants {
 
   // DUMMY OBJECTS ============================================================
 
-  /** Dummy textfield. */
-  public static final JTextField TEXTFIELD = new JTextField();
+  /** Dummy text field. */
+  private static final JTextField TEXTFIELD = new JTextField();
   /** Dummy label, used for size calculations. */
-  public static final JLabel LABEL = new JLabel();
+  private static final JLabel LABEL = new JLabel();
 
   // VIEW NAMES ===================================================================================
 
@@ -339,7 +339,7 @@ public final class GUIConstants {
     font  = new Font(name, type, fontSize);
     mfont = new Font(opts.get(GUIOptions.MONOFONT), type, fontSize);
     bfont = new Font(name, Font.BOLD, fontSize);
-    dmfont = new Font(opts.get(GUIOptions.MONOFONT), 0, LABEL.getFont().getSize());
+    dmfont = new Font(opts.get(GUIOptions.MONOFONT), 0, fontSize());
   }
 
   /**
@@ -349,6 +349,14 @@ public final class GUIConstants {
    */
   public static Color color(final int i) {
     return COLORS[Math.min(COLORS.length - 1, i)];
+  }
+
+  /**
+   * Returns the standard font size.
+   * @return font size
+   */
+  public static int fontSize() {
+    return LABEL.getFont().getSize();
   }
 
   // PRIVATE METHODS ==============================================================================
