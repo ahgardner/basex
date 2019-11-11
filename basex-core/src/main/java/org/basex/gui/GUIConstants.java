@@ -50,6 +50,13 @@ import org.basex.util.*;
  */
 public final class GUIConstants {
 
+  // DUMMY OBJECTS ============================================================
+
+  /** Dummy textfield. */
+  public static final JTextField TEXTFIELD = new JTextField();
+  /** Dummy label, used for size calculations. */
+  public static final JLabel LABEL = new JLabel();
+
   // VIEW NAMES ===================================================================================
 
   /** Internal name of the Map View. */
@@ -177,14 +184,12 @@ public final class GUIConstants {
 
   // COLORS =======================================================================================
 
-  /** UI defaults. */
-  private static final UIDefaults DEFAULTS = UIManager.getDefaults();
   /** Background color. */
-  public static final Color BACK = DEFAULTS.getColor("TextPane.background");
+  public static final Color BACK = new Color(TEXTFIELD.getBackground().getRGB());
   /** Text color. */
-  public static final Color TEXT = DEFAULTS.getColor("TextPane.foreground");
+  public static final Color TEXT = new Color(TEXTFIELD.getForeground().getRGB());
   /** Panel color. */
-  public static final Color PANEL = DEFAULTS.getColor("Label.background");
+  public static final Color PANEL = new Color(LABEL.getBackground().getRGB());
 
   /** Color: red. */
   public static final Color RED = color(224, 0, 0);
@@ -260,9 +265,6 @@ public final class GUIConstants {
   }
 
   // FONTS ========================================================================================
-
-  /** Dummy component for adjusting font sizes. */
-  public static final JLabel LABEL = new JLabel();
 
   /** Font. */
   public static Font font;
