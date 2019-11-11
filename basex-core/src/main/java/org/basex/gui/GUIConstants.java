@@ -50,13 +50,6 @@ import org.basex.util.*;
  */
 public final class GUIConstants {
 
-  // DUMMY OBJECTS ============================================================
-
-  /** Dummy text field. */
-  private static final JTextField TEXTFIELD = new JTextField();
-  /** Dummy label, used for size calculations. */
-  private static final JLabel LABEL = new JLabel();
-
   // VIEW NAMES ===================================================================================
 
   /** Internal name of the Map View. */
@@ -181,6 +174,13 @@ public final class GUIConstants {
       large = UIManager.getIcon("OptionPane." + l + "Icon");
     }
   }
+
+  // DUMMY OBJECTS ============================================================
+
+  /** Dummy text field. */
+  private static final JTextField TEXTFIELD = new JTextField();
+  /** Dummy label, used for size calculations. */
+  private static final JLabel LABEL = new JLabel();
 
   // COLORS =======================================================================================
 
