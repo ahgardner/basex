@@ -25,7 +25,7 @@ import org.basex.util.hash.*;
 /**
  * A static user-defined function.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class StaticFunc extends StaticDecl implements XQFunction {
@@ -63,24 +63,13 @@ public final class StaticFunc extends StaticDecl implements XQFunction {
     if(compiled || expr == null) return;
     compiling = compiled = true;
 
+    // compile function body, handle return type
     cc.pushFocus(null);
     cc.pushScope(vs);
     try {
       expr = expr.compile(cc);
-
-      if(declType != null) {
-        // remove redundant casts
-        final Type type = declType.type;
-        if(declType.eq(expr.seqType()) && (type == AtomType.BLN || type == AtomType.FLT ||
-            type == AtomType.DBL || type == AtomType.QNM || type == AtomType.URI)) {
-          cc.info(OPTTYPE_X, this);
-        } else {
-          expr = new TypeCheck(sc, info, expr, declType, true).optimize(cc);
-        }
-      }
+      if(declType != null) expr = new TypeCheck(sc, info, expr, declType, true).optimize(cc);
     } catch(final QueryException qe) {
-      // error: set most general sequence type
-      declType = SeqType.ITEM_ZM;
       expr = cc.error(qe, expr);
     } finally {
       cc.removeScope(this);
@@ -89,8 +78,26 @@ public final class StaticFunc extends StaticDecl implements XQFunction {
 
     // convert all function calls in tail position to proper tail calls
     expr.markTailCalls(cc);
-
     compiling = false;
+  }
+
+  /**
+   * Optimize the static function.
+   * @param cc compilation context
+   */
+  public void optimize(final CompileContext cc) {
+    // check function calls, drop superfluous type checks
+    final SeqType[] seqTypes = cc.qc.funcs.seqTypes(this);
+    if(seqTypes != null) {
+      final int pl = arity();
+      for(int p = 0; p < pl; p++) {
+        if(seqTypes[p].instanceOf(params[p].seqType())) {
+          cc.info(OPTTYPE_X, params[p]);
+          params[p].declType = null;
+        }
+      }
+    }
+    declType = null;
   }
 
   /**
@@ -142,7 +149,7 @@ public final class StaticFunc extends StaticDecl implements XQFunction {
   }
 
   @Override
-  public Item invItem(final QueryContext qc, final InputInfo ii, final Value... arg)
+  public Value invokeInternal(final QueryContext qc, final InputInfo ii, final Value[] args)
       throws QueryException {
 
     // reset context and evaluate function
@@ -151,40 +158,11 @@ public final class StaticFunc extends StaticDecl implements XQFunction {
     qf.value = null;
     try {
       final int pl = params.length;
-      for(int p = 0; p < pl; p++) qc.set(params[p], arg[p]);
-      return expr.item(qc, info);
-    } finally {
-      qf.value = cv;
-    }
-  }
-
-  @Override
-  public Value invValue(final QueryContext qc, final InputInfo ii, final Value... arg)
-      throws QueryException {
-
-    // reset context and evaluate function
-    final QueryFocus qf = qc.focus;
-    final Value cv = qf.value;
-    qf.value = null;
-    try {
-      final int pl = params.length;
-      for(int p = 0; p < pl; p++) qc.set(params[p], arg[p]);
+      for(int p = 0; p < pl; p++) qc.set(params[p], args[p]);
       return expr.value(qc);
     } finally {
       qf.value = cv;
     }
-  }
-
-  @Override
-  public Value invokeValue(final QueryContext qc, final InputInfo ii, final Value... args)
-      throws QueryException {
-    return FuncCall.invoke(this, args, false, qc, info);
-  }
-
-  @Override
-  public Item invokeItem(final QueryContext qc, final InputInfo ii, final Value... args)
-      throws QueryException {
-    return (Item) FuncCall.invoke(this, args, true, qc, info);
   }
 
   /**
@@ -258,10 +236,12 @@ public final class StaticFunc extends StaticDecl implements XQFunction {
   @Override
   public boolean visit(final ASTVisitor visitor) {
     for(final Ann ann : anns) {
-      final boolean write = ann.sig == Annotation._BASEX_WRITE_LOCK;
-      if(!(write || ann.sig == Annotation._BASEX_READ_LOCK)) continue;
-      for(final Item arg : ann.args()) {
-        for(final String lock : Locking.queryLocks(((Str) arg).string())) visitor.lock(lock, write);
+      if(ann.sig == Annotation._BASEX_LOCK) {
+        for(final Item arg : ann.args()) {
+          for(final String lock : Locking.queryLocks(((Str) arg).string())) {
+            visitor.lock(lock, false);
+          }
+        }
       }
     }
 
@@ -324,13 +304,11 @@ public final class StaticFunc extends StaticDecl implements XQFunction {
   }
 
   @Override
-  public String toString() {
-    final TokenBuilder tb = new TokenBuilder().add(DECLARE).add(' ').add(anns);
-    tb.add(FUNCTION).add(' ').add(name.prefixId());
-    tb.add(PAREN1).addSeparated(params, SEP).add(PAREN2);
-    if(declType != null) tb.add(' ' + AS + ' ' + declType);
-    if(expr != null) tb.add(" { ").add(expr).add(" }; ");
-    else tb.add(" external; ");
-    return tb.toString();
+  public void plan(final QueryString qs) {
+    qs.token(DECLARE).token(anns).token(FUNCTION).token(name.prefixId()).params(params);
+    if(declType != null) qs.token(AS).token(declType);
+    if(expr != null) qs.brace(expr);
+    else qs.token(EXTERNAL);
+    qs.token(';');
   }
 }

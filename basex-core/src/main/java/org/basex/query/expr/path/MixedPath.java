@@ -10,6 +10,7 @@ import org.basex.query.util.list.*;
 import org.basex.query.value.*;
 import org.basex.query.value.item.*;
 import org.basex.query.value.node.*;
+import org.basex.query.value.type.*;
 import org.basex.query.var.*;
 import org.basex.util.*;
 import org.basex.util.hash.*;
@@ -17,7 +18,7 @@ import org.basex.util.hash.*;
 /**
  * Mixed path expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class MixedPath extends Path {
@@ -28,7 +29,7 @@ public final class MixedPath extends Path {
    * @param steps axis steps
    */
   MixedPath(final InputInfo info, final Expr root, final Expr... steps) {
-    super(info, root, steps);
+    super(info, AtomType.ITEM, root, steps);
   }
 
   @Override
@@ -42,15 +43,15 @@ public final class MixedPath extends Path {
       size = iter.size();
     }
 
-    final QueryFocus qf = qc.focus, focus = new QueryFocus();
-    qc.focus = focus;
+    final QueryFocus focus = qc.focus, qf = new QueryFocus();
+    qc.focus = qf;
     try {
       // loop through all expressions
       final int sl = steps.length;
       for(int s = 0; s < sl; s++) {
         // set context position and size
-        focus.size = size;
-        focus.pos = 1;
+        qf.size = size;
+        qf.pos = 0;
 
         // loop through all input items; cache nodes and items
         final ANodeBuilder nodes = new ANodeBuilder();
@@ -58,15 +59,14 @@ public final class MixedPath extends Path {
         final Expr step = steps[s];
         for(Item item; (item = iter.next()) != null;) {
           if(!(item instanceof ANode)) throw PATHNODE_X_X_X.get(info, step, item.type, item);
-          focus.value = item;
-
+          qf.value = item;
+          qf.pos++;
           // loop through all resulting items
           final Iter ir = step.iter(qc);
           for(Item it; (it = qc.next(ir)) != null;) {
             if(it instanceof ANode) nodes.add((ANode) it);
             else items.add(it);
           }
-          focus.pos++;
         }
 
         final Value value = items.value(step);
@@ -84,9 +84,14 @@ public final class MixedPath extends Path {
         size = iter.size();
       }
     } finally {
-      qc.focus = qf;
+      qc.focus = focus;
     }
     return iter;
+  }
+
+  @Override
+  public boolean ddo() {
+    return seqType().type instanceof NodeType;
   }
 
   @Override

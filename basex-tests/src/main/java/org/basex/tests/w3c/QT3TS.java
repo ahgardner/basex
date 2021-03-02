@@ -31,7 +31,7 @@ import org.basex.util.options.Options.YesNo;
  * {@code http://dev.w3.org/2011/QT3-test-suite/}. The driver needs to be
  * executed from the test suite directory.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class QT3TS extends Main {
@@ -222,9 +222,7 @@ public final class QT3TS extends Main {
    * @param envs environments
    * @throws Exception exception
    */
-  private void testCase(final XdmItem test, final ArrayList<QT3Env> envs)
-      throws Exception {
-
+  private void testCase(final XdmItem test, final ArrayList<QT3Env> envs) throws Exception {
     if(total++ % 500 == 0) Util.out(".");
 
     if(!supported(test)) {
@@ -444,7 +442,7 @@ public final class QT3TS extends Main {
    */
   private boolean supported(final XdmValue test) {
     // the following query generates a result if the specified test is not supported
-    return new XQuery(
+    return all || new XQuery(
       "*:environment/*:collation |" + // skip collation tests
       "*:dependency[" +
       // skip schema imports, schema validation, namespace axis, static typing
@@ -839,7 +837,7 @@ public final class QT3TS extends Main {
    */
   private static String assertBoolean(final QT3Result result, final boolean expected) {
     final XdmValue returned = result.value;
-    return returned.getType().eq(SeqType.BLN_O) && returned.getBoolean() == expected ?
+    return returned.getType().eq(SeqType.BOOLEAN_O) && returned.getBoolean() == expected ?
         null : Util.info(expected);
   }
 

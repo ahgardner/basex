@@ -12,7 +12,7 @@ import org.basex.query.value.type.*;
 /**
  * Function implementation.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class UtilOr extends StandardFunc {
@@ -48,20 +48,20 @@ public final class UtilOr extends StandardFunc {
   }
 
   @Override
-  protected Expr opt(final CompileContext cc) {
-    // empty sequence: return default
+  protected Expr opt(final CompileContext cc) throws QueryException {
+    // check for empty sequences
     final Expr items = exprs[0], dflt = exprs[1];
     if(items == Empty.VALUE) return dflt;
+    if(dflt == Empty.VALUE) return items;
 
-    // at least one item, or default is empty: return items
+    // return items or rewrite to list
     final SeqType st = items.seqType();
-    if(st.oneOrMore() || dflt == Empty.VALUE) return items;
+    if(st.oneOrMore()) return items;
+    if(st.zero()) return List.get(cc, info, items, dflt);
 
-    // otherwise, combine sequence types
-    SeqType ut = dflt.seqType();
-    if(!st.zero()) ut = st.with(st.zeroOrOne() ? Occ.ONE : Occ.ONE_MORE).union(ut);
-
-    exprType.assign(ut);
+    // number of items unknown: combine sequence types
+    final Occ occ = st.zeroOrOne() ? Occ.EXACTLY_ONE : Occ.ONE_OR_MORE;
+    exprType.assign(st.with(occ).union(dflt.seqType()));
     return this;
   }
 }

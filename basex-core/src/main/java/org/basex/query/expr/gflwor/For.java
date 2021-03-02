@@ -19,7 +19,7 @@ import org.basex.util.hash.*;
 /**
  * FLWOR {@code for} clause, iterating over a sequence.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class For extends ForLet {
@@ -28,7 +28,7 @@ public final class For extends ForLet {
   /** Score variable (can be {@code null}). */
   Var score;
   /** {@code allowing empty} flag. */
-  final boolean empty;
+  boolean empty;
 
   /**
    * Constructor.
@@ -119,17 +119,19 @@ public final class For extends ForLet {
 
   @Override
   public For optimize(final CompileContext cc) throws QueryException {
-    // assign type to clause and variable
-    final SeqType type = expr.seqType();
-    exprType.assign(type.type, empty && !type.oneOrMore() ? Occ.ZERO_ONE : Occ.ONE);
+    // assign type to clause and variable; remove empty flag if expression always yields items
+    final SeqType st = expr.seqType();
+    if(st.oneOrMore()) empty = false;
+    exprType.assign(st.with(empty ? st.zero() ? Occ.ZERO : Occ.ZERO_OR_ONE : Occ.EXACTLY_ONE));
+
     var.refineType(seqType(), size(), cc);
     var.expr(expr);
     if(pos != null) {
-      pos.refineType(SeqType.ITR_O, 1, cc);
+      pos.refineType(SeqType.INTEGER_O, 1, cc);
       pos.expr(Int.ZERO);
     }
     if(score != null) {
-      score.refineType(SeqType.DBL_O, 1, cc);
+      score.refineType(SeqType.DOUBLE_O, 1, cc);
       score.expr(Dbl.ZERO);
     }
     return this;
@@ -174,11 +176,6 @@ public final class For extends ForLet {
     return true;
   }
 
-  @Override
-  boolean toPredicate(final CompileContext cc, final Expr ex) throws QueryException {
-    return !empty && pos == null && super.toPredicate(cc, ex);
-  }
-
   /**
    * Removes a variable reference.
    * @param cc compilation context
@@ -196,11 +193,16 @@ public final class For extends ForLet {
   }
 
   @Override
-  void calcSize(final long[] minMax) {
+  public void calcSize(final long[] minMax) {
     final long size = expr.size(), factor = size > 0 ? size : empty ? 1 : 0;
     minMax[0] *= factor;
     final long max = minMax[1];
     if(max > 0) minMax[1] = size >= 0 ? max * factor : -1;
+  }
+
+  @Override
+  Expr inlineExpr(final CompileContext cc) {
+    return empty || vars.length > 1 || var.checksType() ? null : expr;
   }
 
   @Override
@@ -221,11 +223,11 @@ public final class For extends ForLet {
   }
 
   @Override
-  public String toString() {
-    final StringBuilder sb = new StringBuilder(FOR).append(' ').append(var);
-    if(empty) sb.append(' ').append(ALLOWING).append(' ').append(EMPTYY);
-    if(pos != null) sb.append(' ').append(AT).append(' ').append(pos);
-    if(score != null) sb.append(' ').append(SCORE).append(' ').append(score);
-    return sb.append(' ').append(IN).append(' ').append(expr).toString();
+  public void plan(final QueryString qs) {
+    qs.token(FOR).token(var);
+    if(empty) qs.token(ALLOWING).token(EMPTYY);
+    if(pos != null) qs.token(AT).token(pos);
+    if(score != null) qs.token(SCORE).token(score);
+    qs.token(IN).token(expr);
   }
 }

@@ -18,7 +18,7 @@ import org.basex.util.list.*;
 /**
  * Sequence, containing at least two nodes in distinct document order (DDO).
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public class DBNodeSeq extends NativeSeq {
@@ -67,7 +67,7 @@ public class DBNodeSeq extends NativeSeq {
   public Value atomValue(final QueryContext qc, final InputInfo ii) {
     final ValueBuilder vb = new ValueBuilder(qc);
     for(int i = 0; i < size; i++) vb.add(itemAt(i).atomValue(qc, ii));
-    return vb.value(AtomType.AAT);
+    return vb.value(AtomType.ANY_ATOMIC_TYPE);
   }
 
   /**
@@ -112,17 +112,17 @@ public class DBNodeSeq extends NativeSeq {
   }
 
   @Override
-  public String toString() {
-    final StringBuilder sb = new StringBuilder(PAREN1);
-    for(int i = 0; i < size; ++i) {
-      sb.append(i == 0 ? "" : SEP);
-      sb.append(_DB_OPEN_PRE.args(data.meta.name, pres[i]).substring(1));
-      if(sb.length() <= 16 || i + 1 == size) continue;
-      // output is chopped to prevent too long error strings
-      sb.append(SEP).append(DOTS);
+  public void plan(final QueryString qs) {
+    final TokenBuilder tb = new TokenBuilder().add('(');
+    for(int p = 0; p < size; ++p) {
+      if(p > 0) tb.add(SEP);
+      tb.add(_DB_OPEN_PRE.args(data.meta.name, pres[p]).trim());
+      if(tb.size() <= 16 || p + 1 == size) continue;
+      // chop output to prevent too long error strings
+      tb.add(SEP).add(DOTS);
       break;
     }
-    return sb.append(PAREN2).toString();
+    qs.token(tb.add(')').finish());
   }
 
   // STATIC METHODS ===============================================================================
@@ -137,7 +137,7 @@ public class DBNodeSeq extends NativeSeq {
    */
   public static Value get(final int[] pres, final Data data, final Type type, final boolean all) {
     return pres.length == 0 ? Empty.VALUE : pres.length == 1 ? new DBNode(data, pres[0]) :
-      new DBNodeSeq(pres, data, type == null ? NodeType.NOD : type, all);
+      new DBNodeSeq(pres, data, type == null ? NodeType.NODE : type, all);
   }
 
   /**
@@ -148,7 +148,7 @@ public class DBNodeSeq extends NativeSeq {
    * @return value
    */
   public static Value get(final int[] pres, final Data data, final Expr expr) {
-    return get(pres, data, NodeType.NOD.refine(expr), false);
+    return get(pres, data, NodeType.NODE.refine(expr), false);
   }
 
   /**
@@ -161,6 +161,6 @@ public class DBNodeSeq extends NativeSeq {
    */
   public static Value get(final IntList pres, final Data data, final boolean docs,
       final boolean all) {
-    return get(pres.toArray(), data, docs ? NodeType.DOC : null, all);
+    return get(pres.toArray(), data, docs ? NodeType.DOCUMENT_NODE : null, all);
   }
 }

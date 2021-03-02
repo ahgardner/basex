@@ -13,12 +13,14 @@ import org.w3c.dom.*;
 /**
  * PI node fragment.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FPI extends FNode {
-  /** Closing processing instruction. */
-  private static final byte[] CLOSE = { '?', '>' };
+  /** Opening characters. */
+  public static final byte[] OPEN = { '<', '?' };
+  /** Closing characters. */
+  public static final byte[] CLOSE = { '?', '>' };
 
   /** PI name. */
   private final QNm name;
@@ -38,7 +40,7 @@ public final class FPI extends FNode {
    * @param value value
    */
   public FPI(final QNm name, final byte[] value) {
-    super(NodeType.PI);
+    super(NodeType.PROCESSING_INSTRUCTION);
     this.name = name;
     this.value = value;
   }
@@ -78,8 +80,8 @@ public final class FPI extends FNode {
   }
 
   @Override
-  public String toString() {
-    return Util.info("<?% %?>", name.string(), toToken(value));
+  public void plan(final QueryString qs) {
+    qs.concat(OPEN, name.string(), " ", QueryString.toValue(value), CLOSE);
   }
 
   /**

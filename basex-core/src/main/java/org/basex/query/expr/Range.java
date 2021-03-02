@@ -16,7 +16,7 @@ import org.basex.util.hash.*;
 /**
  * Range expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class Range extends Arr {
@@ -27,7 +27,7 @@ public final class Range extends Arr {
    * @param expr2 second expression
    */
   public Range(final InputInfo info, final Expr expr1, final Expr expr2) {
-    super(info, SeqType.ITR_ZM, expr1, expr2);
+    super(info, SeqType.INTEGER_ZM, expr1, expr2);
   }
 
   @Override
@@ -36,16 +36,14 @@ public final class Range extends Arr {
 
     Expr expr = emptyExpr();
     if(expr == this) {
-      if(allAreValues(false)) {
-        expr = value(cc.qc);
-      } else {
-        final Expr expr1 = exprs[0], expr2 = exprs[1];
-        if(expr1.equals(expr2)) {
-          if(expr1.seqType().instanceOf(SeqType.ITR_O)) {
-            expr = expr1;
-          } else {
-            exprType.assign(Occ.ONE);
-          }
+      if(allAreValues(false)) return cc.preEval(this);
+
+      final Expr expr1 = exprs[0], expr2 = exprs[1];
+      if(expr1.equals(expr2)) {
+        if(expr1.seqType().instanceOf(SeqType.INTEGER_O)) {
+          expr = expr1;
+        } else {
+          exprType.assign(Occ.EXACTLY_ONE);
         }
       }
     }
@@ -84,7 +82,7 @@ public final class Range extends Arr {
   }
 
   @Override
-  public String toString() {
-    return toString(' ' + TO + ' ');
+  public void plan(final QueryString qs) {
+    qs.tokens(exprs, ' ' + TO + ' ', true);
   }
 }

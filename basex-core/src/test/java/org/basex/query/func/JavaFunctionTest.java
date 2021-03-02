@@ -8,7 +8,7 @@ import org.junit.jupiter.api.*;
 /**
  * This class tests the Java bindings.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class JavaFunctionTest extends SandboxTest {
@@ -157,8 +157,8 @@ public final class JavaFunctionTest extends SandboxTest {
   @Test public void javaCast() {
     error("xs:java('x')", WHICHFUNC_X);
     error("java('x')", WHICHFUNC_X);
-    error("'x' cast as xs:java", TYPE30_X);
-    error("'x' cast as java", TYPE30_X);
+    error("'x' cast as xs:java", WHICHCAST_X);
+    error("'x' cast as java", WHICHCAST_X);
   }
 
   /** Static check for Java method/variable names. */
@@ -188,7 +188,7 @@ public final class JavaFunctionTest extends SandboxTest {
 
   /** Retrieve function items as Java objects. */
   @Test public void toJava() {
-    query("import module namespace set = \"java:java.util.HashSet\"; set:add(true#0)", "true");
+    query("import module namespace set = 'java:java.util.HashSet'; set:add(true#0)", "true");
   }
 
   /** Empty sequences. */

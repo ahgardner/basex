@@ -27,7 +27,7 @@ import org.basex.util.hash.*;
 /**
  * String range expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class CmpSR extends Single {
@@ -58,7 +58,7 @@ public final class CmpSR extends Single {
   private CmpSR(final Expr expr, final byte[] min, final boolean mni, final byte[] max,
       final boolean mxi, final Collation coll, final InputInfo info) {
 
-    super(info, expr, SeqType.BLN_O);
+    super(info, expr, SeqType.BOOLEAN_O);
     this.coll = coll;
     this.min = min;
     this.mni = mni;
@@ -73,7 +73,7 @@ public final class CmpSR extends Single {
 
   @Override
   public Expr optimize(final CompileContext cc) throws QueryException {
-    expr = expr.simplifyFor(Simplify.ATOM, cc);
+    expr = expr.simplifyFor(Simplify.STRING, cc);
 
     final SeqType st = expr.seqType();
     single = st.zeroOrOne() && !st.mayBeArray();
@@ -127,7 +127,7 @@ public final class CmpSR extends Single {
    * @throws QueryException query exception
    */
   private boolean eval(final Item item) throws QueryException {
-    if(!item.type.isStringOrUntyped()) throw diffError(item, Str.ZERO, info);
+    if(!item.type.isStringOrUntyped()) throw diffError(item, Str.EMPTY, info);
     final byte[] s = item.string(info);
     final int mn = min == null ?  1 :
       coll == null ? Token.diff(s, min) : coll.compare(s, min);
@@ -189,7 +189,7 @@ public final class CmpSR extends Single {
   public Expr copy(final CompileContext cc, final IntObjMap<Var> vm) {
     final CmpSR cmp = new CmpSR(expr.copy(cc, vm), min, mni, max, mxi, coll, info);
     cmp.single = single;
-    return cmp;
+    return copyType(cmp);
   }
 
   @Override
@@ -213,11 +213,9 @@ public final class CmpSR extends Single {
   }
 
   @Override
-  public String toString() {
-    final TokenBuilder tb = new TokenBuilder().add(PAREN1);
-    if(min != null) tb.add(expr).add(mni ? " >= " : " > ").add(Item.toQuotedToken(min));
-    if(min == null && max == null) tb.add(' ').add(AND).add(' ');
-    if(max != null) tb.add(expr).add(mxi ? " <= " : " < ").add(Item.toQuotedToken(max));
-    return tb.add(PAREN2).toString();
+  public void plan(final QueryString qs) {
+    if(min != null) qs.token(expr).token(mni ? ">=" : ">").quoted(min);
+    if(min != null && max != null) qs.token(AND);
+    if(max != null) qs.token(expr).token(mxi ? "<=" : "<").quoted(max);
   }
 }

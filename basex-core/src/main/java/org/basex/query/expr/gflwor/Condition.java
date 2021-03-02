@@ -19,7 +19,7 @@ import org.basex.util.hash.*;
 /**
  * A window {@code start} of {@code end} condition.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class Condition extends Single {
@@ -74,17 +74,16 @@ public final class Condition extends Single {
    */
   void compile(final Expr ex, final CompileContext cc) throws QueryException {
     final SeqType st = ex.seqType();
-    if(item != null) item.refineType(st.with(Occ.ONE), 1, cc);
-    if(pos  != null) pos.refineType(SeqType.ITR_O, 1, cc);
-    if(prev != null) prev.refineType(st.with(Occ.ZERO_ONE), -1, cc);
-    if(next != null) next.refineType(st.with(Occ.ZERO_ONE), -1, cc);
+    if(item != null) item.refineType(st.with(Occ.EXACTLY_ONE), 1, cc);
+    if(pos  != null) pos.refineType(SeqType.INTEGER_O, 1, cc);
+    if(prev != null) prev.refineType(st.with(Occ.ZERO_OR_ONE), -1, cc);
+    if(next != null) next.refineType(st.with(Occ.ZERO_OR_ONE), -1, cc);
     compile(cc);
   }
 
   @Override
-  public Condition inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-    return (Condition) super.inline(ei, ex, cc);
+  public Condition inline(final InlineContext ic) throws QueryException {
+    return (Condition) super.inline(ic);
   }
 
   @Override
@@ -194,15 +193,14 @@ public final class Condition extends Single {
     if(next != null) plan.addElement(elem, plan.create(NEXT, next));
     plan.add(elem, expr);
   }
-
   @Override
-  public String toString() {
-    final StringBuilder sb = new StringBuilder(start ? START : END);
-    if(item != null) sb.append(' ').append(item);
-    if(pos  != null) sb.append(' ').append(AT).append(' ').append(pos);
-    if(prev != null) sb.append(' ').append(PREVIOUS).append(' ').append(prev);
-    if(next != null) sb.append(' ').append(NEXT).append(' ').append(next);
-    return sb.append(' ').append(WHEN).append(' ').append(expr).toString();
+  public void plan(final QueryString qs) {
+    qs.token(start ? START : END);
+    if(item != null) qs.token(item);
+    if(pos  != null) qs.token(AT).token(pos);
+    if(prev != null) qs.token(PREVIOUS).token(prev);
+    if(next != null) qs.token(NEXT).token(next);
+    qs.token(WHEN).token(expr);
   }
 }
 

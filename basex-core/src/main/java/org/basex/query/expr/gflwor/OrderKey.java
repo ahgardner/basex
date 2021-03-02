@@ -16,7 +16,7 @@ import org.basex.util.hash.*;
 /**
  * Sort key.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class OrderKey extends Single {
@@ -45,7 +45,7 @@ public final class OrderKey extends Single {
 
   @Override
   public OrderKey copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new OrderKey(info, expr.copy(cc, vm), desc, least, coll);
+    return copyType(new OrderKey(info, expr.copy(cc, vm), desc, least, coll));
   }
 
   @Override
@@ -55,7 +55,7 @@ public final class OrderKey extends Single {
 
   @Override
   public Expr optimize(final CompileContext cc) throws QueryException {
-    expr = expr.simplifyFor(Simplify.ATOM, cc);
+    expr = expr.simplifyFor(Simplify.DATA, cc);
     // override pre-evaluation
     return this;
   }
@@ -81,11 +81,10 @@ public final class OrderKey extends Single {
   }
 
   @Override
-  public String toString() {
-    final TokenBuilder tb = new TokenBuilder().add(expr);
-    if(desc) tb.add(' ').add(DESCENDING);
-    tb.add(' ').add(EMPTYY).add(' ').add(least ? LEAST : GREATEST);
-    if(coll != null) tb.add(' ').add(COLLATION).add(" \"").add(coll.uri()).add('"');
-    return tb.toString();
+  public void plan(final QueryString qs) {
+    qs.token(expr);
+    if(desc) qs.token(DESCENDING);
+    qs.token(EMPTYY).token(least ? LEAST : GREATEST);
+    if(coll != null) qs.token(COLLATION).token("\"").token(coll.uri()).token('"');
   }
 }

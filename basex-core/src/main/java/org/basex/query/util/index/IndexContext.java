@@ -8,7 +8,7 @@ import org.basex.util.*;
 /**
  * Index predicate: context expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public class IndexContext extends IndexPred {
@@ -53,7 +53,7 @@ public class IndexContext extends IndexPred {
 
     // attribute index request: add attribute step
     final InputInfo info = root instanceof ParseExpr ? ((ParseExpr) root).info : null;
-    final Expr step = new StepBuilder(st.info).test(st.test).finish(ii.cc, root);
+    final Expr step = Step.get(ii.cc, root, st.info, st.test);
     return Path.get(info, root, step);
   }
 }

@@ -12,7 +12,7 @@ import org.basex.server.*;
 /**
  * This class offers methods to locally execute database commands.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public class LocalSession extends Session {
@@ -61,7 +61,7 @@ public class LocalSession extends Session {
 
     this(context, output, context.users.get(username));
     final User user = ctx.user();
-    if(user == null || !user.matches(password)) throw new LoginException();
+    if(!user.matches(password)) throw new LoginException(user.name());
   }
 
   /**

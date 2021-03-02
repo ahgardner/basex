@@ -20,19 +20,19 @@ import org.basex.util.hash.*;
 /**
  * Catch clause.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class Catch extends Single {
   /** Error QNames. */
   public static final QNm[] NAMES = {
     create(E_CODE), create(E_DESCRIPTION), create(E_VALUE), create(E_MODULE),
-    create(E_LINE_NUMBER), create(E_COLUM_NUMBER), create(E_ADDITIONAL)
+    create(E_LINE_NUMBER), create(E_COLUMN_NUMBER), create(E_ADDITIONAL)
   };
   /** Error types. */
   public static final SeqType[] TYPES = {
-    SeqType.QNM_O, SeqType.STR_ZO, SeqType.ITEM_ZM, SeqType.STR_ZO,
-    SeqType.ITR_ZO, SeqType.ITR_ZO, SeqType.ITEM_ZM
+    SeqType.QNAME_O, SeqType.STRING_ZO, SeqType.ITEM_ZM, SeqType.STRING_ZO,
+    SeqType.INTEGER_ZO, SeqType.INTEGER_ZO, SeqType.ITEM_ZM
   };
 
   /** Error tests. */
@@ -90,17 +90,17 @@ public final class Catch extends Single {
     final int val = vars.length;
     for(int v = 0; v < val; v++) vm.put(vars[v].id, ctch.vars[v]);
     ctch.expr = expr.copy(cc, vm);
-    return ctch;
+    return copyType(ctch);
   }
 
   @Override
-  public Catch inline(final ExprInfo ei, final Expr ex, final CompileContext cc) {
+  public Catch inline(final InlineContext ic) {
     try {
-      final Expr inlined = expr.inline(ei, ex, cc);
+      final Expr inlined = expr.inline(ic);
       if(inlined == null) return null;
       expr = inlined;
     } catch(final QueryException qe) {
-      expr = cc.error(qe, expr);
+      expr = ic.cc.error(qe, expr);
     }
     return this;
   }
@@ -113,13 +113,12 @@ public final class Catch extends Single {
    * @throws QueryException query exception
    */
   Expr inline(final QueryException qe, final CompileContext cc) throws QueryException {
+    if(expr instanceof Value) return expr;
+
     Expr ex = expr;
-    if(!(ex instanceof Value)) {
-      int v = 0;
-      for(final Value value : values(qe)) {
-        final Expr inlined = ex.inline(vars[v++], value, cc);
-        if(inlined != null) ex = inlined;
-      }
+    int v = 0;
+    for(final Value value : values(qe)) {
+      ex = new InlineContext(vars[v++], value, cc).inline(ex);
     }
     return ex;
   }
@@ -225,13 +224,13 @@ public final class Catch extends Single {
   }
 
   @Override
-  public String toString() {
-    final StringBuilder sb = new StringBuilder("catch ");
+  public void plan(final QueryString qs) {
+    qs.token(CATCH);
     int c = 0;
     for(final NameTest test : tests) {
-      if(c++ > 0) sb.append(" | ");
-      sb.append(test != null ? test.toString(false) : "*");
+      if(c++ > 0) qs.token('|');
+      qs.token(test != null ? test.toString(false) : "*");
     }
-    return sb.append(" { ").append(expr).append(" }").toString();
+    qs.brace(expr);
   }
 }

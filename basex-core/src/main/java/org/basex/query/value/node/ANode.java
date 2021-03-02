@@ -6,7 +6,6 @@ import org.basex.api.dom.*;
 import org.basex.core.*;
 import org.basex.data.*;
 import org.basex.query.*;
-import org.basex.query.expr.*;
 import org.basex.query.iter.*;
 import org.basex.query.util.*;
 import org.basex.query.util.collation.*;
@@ -18,13 +17,14 @@ import org.basex.util.*;
 /**
  * Abstract node type.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public abstract class ANode extends Item {
   /** Node Types. */
   private static final NodeType[] TYPES = {
-    NodeType.DOC, NodeType.ELM, NodeType.TXT, NodeType.ATT, NodeType.COM, NodeType.PI
+    NodeType.DOCUMENT_NODE, NodeType.ELEMENT, NodeType.TEXT, NodeType.ATTRIBUTE,
+    NodeType.COMMENT, NodeType.PROCESSING_INSTRUCTION
   };
   /** Static node counter. */
   private static final AtomicInteger ID = new AtomicInteger();
@@ -33,8 +33,6 @@ public abstract class ANode extends Item {
 
   /** Cached string value. */
   byte[] value;
-  /** Parent node (can be {@code null}). */
-  ANode parent;
 
   /**
    * Constructor.
@@ -59,6 +57,11 @@ public abstract class ANode extends Item {
    * @return string value
    */
   public abstract byte[] string();
+
+  @Override
+  public final boolean comparable(final Item item) {
+    return item.type.isStringOrUntyped();
+  }
 
   @Override
   public final boolean eq(final Item item, final Collation coll, final StaticContext sc,
@@ -94,7 +97,13 @@ public abstract class ANode extends Item {
    * @return item
    */
   public Item atomItem() {
-    return type == NodeType.PI || type == NodeType.COM ? Str.get(string()) : new Atm(string());
+    return type == NodeType.PROCESSING_INSTRUCTION || type == NodeType.COMMENT ? Str.get(string()) :
+      new Atm(string());
+  }
+
+  @Override
+  public boolean ddo() {
+    return true;
   }
 
   @Override
@@ -181,7 +190,7 @@ public abstract class ANode extends Item {
         }
       }
       node = node.parent();
-    } while(node != null && node.type == NodeType.ELM);
+    } while(node != null && node.type == NodeType.ELEMENT);
     if(sc != null) sc.ns.inScope(ns);
     return ns;
   }
@@ -279,12 +288,10 @@ public abstract class ANode extends Item {
    * Sets the parent node.
    * @param par parent node
    */
-  public final void parent(final ANode par) {
-    parent = par;
-  }
+  public abstract void parent(FNode par);
 
   /**
-   * Returns true if the node has children.
+   * Indicates if the node has children.
    * @return result of test
    */
   public abstract boolean hasChildren();
@@ -315,16 +322,40 @@ public abstract class ANode extends Item {
   /**
    * Returns a light-weight, low-level ancestor axis iterator.
    * Before nodes are added to the result, they must be finalized via {@link ANode#finish()}.
+   * Overwritten by {@link DBNode#ancestorIter()}.
    * @return iterator
    */
-  public abstract BasicNodeIter ancestorIter();
+  public BasicNodeIter ancestorIter() {
+    return new BasicNodeIter() {
+      private ANode node = ANode.this;
+
+      @Override
+      public ANode next() {
+        node = node.parent();
+        return node;
+      }
+    };
+  }
 
   /**
    * Returns a light-weight ancestor-or-self axis iterator.
    * Before nodes are added to the result, they must be finalized via {@link ANode#finish()}.
+   * Overwritten by {@link DBNode#ancestorOrSelfIter()}.
    * @return iterator
    */
-  public abstract BasicNodeIter ancestorOrSelfIter();
+  public BasicNodeIter ancestorOrSelfIter() {
+    return new BasicNodeIter() {
+      private ANode node = ANode.this;
+
+      @Override
+      public ANode next() {
+        if(node == null) return null;
+        final ANode n = node;
+        node = n.parent();
+        return n;
+      }
+    };
+  }
 
   /**
    * Returns a light-weight, low-level attribute axis iterator with {@link Iter#size()} and
@@ -360,14 +391,57 @@ public abstract class ANode extends Item {
    * Before nodes are added to the result, they must be finalized via {@link ANode#finish()}.
    * @return iterator
    */
-  public abstract BasicNodeIter followingIter();
+  public BasicNodeIter followingIter() {
+    return new BasicNodeIter() {
+      private BasicNodeIter iter;
+
+      @Override
+      public ANode next() {
+        if(iter == null) {
+          final ANodeList list = new ANodeList();
+          ANode node = ANode.this, root = node.parent();
+          while(root != null) {
+            final BasicNodeIter ir = root.childIter();
+            if(node.type != NodeType.ATTRIBUTE) {
+              for(final ANode nd : ir) {
+                if(nd.is(node)) break;
+              }
+            }
+            for(final ANode nd : ir) {
+              list.add(nd.finish());
+              addDesc(nd.childIter(), list);
+            }
+            node = root;
+            root = root.parent();
+          }
+          iter = list.iter();
+        }
+        return iter.next();
+      }
+    };
+  }
 
   /**
    * Returns a light-weight, low-level following-sibling axis iterator.
    * Before nodes are added to the result, they must be finalized via {@link ANode#finish()}.
    * @return iterator
    */
-  public abstract BasicNodeIter followingSiblingIter();
+  public BasicNodeIter followingSiblingIter() {
+    return new BasicNodeIter() {
+      private BasicNodeIter iter;
+
+      @Override
+      public ANode next() {
+        if(iter == null) {
+          final ANode root = parent();
+          if(root == null) return null;
+          iter = root.childIter();
+          for(ANode n; (n = iter.next()) != null && !n.is(ANode.this););
+        }
+        return iter.next();
+      }
+    };
+  }
 
   /**
    * Returns a light-weight, low-level parent axis iterator.
@@ -384,18 +458,6 @@ public abstract class ANode extends Item {
         called = true;
         return parent();
       }
-      @Override
-      public ANode get(final long i) {
-        return parent();
-      }
-      @Override
-      public ANode value(final QueryContext qc, final Expr expr) {
-        return parent();
-      }
-      @Override
-      public long size() {
-        return 1;
-      }
     };
   }
 
@@ -406,26 +468,25 @@ public abstract class ANode extends Item {
    */
   public final BasicNodeIter precedingIter() {
     return new BasicNodeIter() {
-      /** Iterator. */
       private BasicNodeIter iter;
 
       @Override
       public ANode next() {
         if(iter == null) {
           final ANodeList list = new ANodeList();
-          ANode n = ANode.this, p = n.parent();
-          while(p != null) {
-            if(n.type != NodeType.ATT) {
+          ANode node = ANode.this, root = node.parent();
+          while(root != null) {
+            if(node.type != NodeType.ATTRIBUTE) {
               final ANodeList tmp = new ANodeList();
-              for(final ANode c : p.childIter()) {
-                if(c.is(n)) break;
+              for(final ANode c : root.childIter()) {
+                if(c.is(node)) break;
                 tmp.add(c.finish());
                 addDesc(c.childIter(), tmp);
               }
               for(int t = tmp.size() - 1; t >= 0; t--) list.add(tmp.get(t));
             }
-            n = p;
-            p = p.parent();
+            node = root;
+            root = root.parent();
           }
           iter = list.iter();
         }
@@ -441,22 +502,20 @@ public abstract class ANode extends Item {
    */
   public final BasicNodeIter precedingSiblingIter() {
     return new BasicNodeIter() {
-      /** Child nodes. */
       private BasicNodeIter iter;
-      /** Counter. */
       private int i;
 
       @Override
       public ANode next() {
         if(iter == null) {
-          if(type == NodeType.ATT) return null;
-          final ANode r = parent();
-          if(r == null) return null;
+          if(type == NodeType.ATTRIBUTE) return null;
+          final ANode root = parent();
+          if(root == null) return null;
 
           final ANodeList list = new ANodeList();
-          for(final ANode n : r.childIter()) {
-            if(n.is(ANode.this)) break;
-            list.add(n.finish());
+          for(final ANode node : root.childIter()) {
+            if(node.is(ANode.this)) break;
+            list.add(node.finish());
           }
           i = list.size();
           iter = list.iter();
@@ -485,13 +544,13 @@ public abstract class ANode extends Item {
 
   /**
    * Adds children of a sub node.
-   * @param ch child nodes
-   * @param nb node cache
+   * @param children child nodes
+   * @param nodes node cache
    */
-  static void addDesc(final BasicNodeIter ch, final ANodeList nb) {
-    for(final ANode n : ch) {
-      nb.add(n.finish());
-      addDesc(n.childIter(), nb);
+  static void addDesc(final BasicNodeIter children, final ANodeList nodes) {
+    for(final ANode node : children) {
+      nodes.add(node.finish());
+      addDesc(node.childIter(), nodes);
     }
   }
 
@@ -510,12 +569,12 @@ public abstract class ANode extends Item {
    */
   public static int kind(final NodeType type) {
     switch(type) {
-      case DOC: return Data.DOC;
-      case ELM: return Data.ELEM;
-      case TXT: return Data.TEXT;
-      case ATT: return Data.ATTR;
-      case COM: return Data.COMM;
-      case PI : return Data.PI;
+      case DOCUMENT_NODE: return Data.DOC;
+      case ELEMENT: return Data.ELEM;
+      case TEXT: return Data.TEXT;
+      case ATTRIBUTE: return Data.ATTR;
+      case COMMENT: return Data.COMM;
+      case PROCESSING_INSTRUCTION : return Data.PI;
       default : return -1;
     }
   }

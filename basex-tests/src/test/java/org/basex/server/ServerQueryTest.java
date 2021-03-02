@@ -11,7 +11,7 @@ import org.junit.jupiter.api.*;
  * This class performs a client/server stress tests with a specified
  * number of threads and queries.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class ServerQueryTest extends SandboxTest {
@@ -33,8 +33,7 @@ public final class ServerQueryTest extends SandboxTest {
    * Runs the test.
    * @throws Exception exception
    */
-  @Test
-  public void clients20runs20() throws Exception {
+  @Test public void clients20runs20() throws Exception {
     run(20, 20);
   }
 
@@ -42,8 +41,7 @@ public final class ServerQueryTest extends SandboxTest {
    * Runs the test.
    * @throws Exception exception
    */
-  @Test
-  public void clients20runs200() throws Exception {
+  @Test public void clients20runs200() throws Exception {
     run(20, 200);
   }
 
@@ -51,8 +49,7 @@ public final class ServerQueryTest extends SandboxTest {
    * Runs the test.
    * @throws Exception exception
    */
-  @Test
-  public void clients200runs20() throws Exception {
+  @Test public void clients200runs20() throws Exception {
     run(200, 20);
   }
 
@@ -60,8 +57,7 @@ public final class ServerQueryTest extends SandboxTest {
    * Runs the test.
    * @throws Exception exception
    */
-  @Test
-  public void clients200runs200() throws Exception {
+  @Test public void clients200runs200() throws Exception {
     run(200, 200);
   }
 

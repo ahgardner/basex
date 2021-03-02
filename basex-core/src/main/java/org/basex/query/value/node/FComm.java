@@ -11,7 +11,7 @@ import org.w3c.dom.*;
 /**
  * Comment node fragment.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FComm extends FNode {
@@ -31,7 +31,7 @@ public final class FComm extends FNode {
    * @param value text value
    */
   public FComm(final byte[] value) {
-    super(NodeType.COM);
+    super(NodeType.COMMENT);
     this.value = value;
   }
 
@@ -50,8 +50,8 @@ public final class FComm extends FNode {
   }
 
   @Override
-  public String toString() {
-    return Strings.concat("<!--", toToken(value), "-->");
+  public void plan(final QueryString qs) {
+    qs.concat("<!--", QueryString.toValue(value), "-->");
   }
 
   /**

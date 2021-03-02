@@ -23,7 +23,7 @@ import org.basex.util.hash.*;
 /**
  * Replace expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Lukas Kircher
  */
 public final class Replace extends Update {
@@ -55,7 +55,8 @@ public final class Replace extends Update {
     // check target constraints
     if(item == null) throw UPSEQEMP_X.get(info, Util.className(this));
     final Type type = item.type;
-    if(!(item instanceof ANode) || type == NodeType.DOC) throw UPTRGNODE_X.get(info, item);
+    if(!(item instanceof ANode) || type == NodeType.DOCUMENT_NODE)
+      throw UPTRGNODE_X.get(info, item);
     final Item item2 = iter.next();
     if(item2 != null) throw UPTRGSINGLE_X.get(info, ValueBuilder.concat(item, item2, qc));
     final ANode targ = (ANode) item;
@@ -70,17 +71,17 @@ public final class Replace extends Update {
       final byte[] txt = list.size() < 1 ? aList.size() < 1 ? EMPTY :
         aList.get(0).string() : list.get(0).string();
       // check validity of future comments or PIs
-      if(type == NodeType.COM) FComm.parse(txt, info);
-      if(type == NodeType.PI) FPI.parse(txt, info);
+      if(type == NodeType.COMMENT) FComm.parse(txt, info);
+      if(type == NodeType.PROCESSING_INSTRUCTION) FPI.parse(txt, info);
 
       updates.add(new ReplaceValue(dbn.pre(), dbn.data(), info, txt), qc);
     } else {
-      final ANode par = targ.parent();
-      if(par == null) throw UPNOPAR_X.get(info, targ);
-      if(type == NodeType.ATT) {
+      final ANode parent = targ.parent();
+      if(parent == null) throw UPNOPAR_X.get(info, targ);
+      if(type == NodeType.ATTRIBUTE) {
         // replace attribute node
         if(!list.isEmpty()) throw UPWRATTR_X.get(info, list.get(0));
-        list = checkNS(aList, par);
+        list = checkNS(aList, parent);
       } else {
         // replace non-attribute node
         if(!aList.isEmpty()) throw UPWRELM_X.get(info, targ);
@@ -93,7 +94,7 @@ public final class Replace extends Update {
 
   @Override
   public Expr copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new Replace(sc, info, exprs[0].copy(cc, vm), exprs[1].copy(cc, vm), value);
+    return copyType(new Replace(sc, info, exprs[0].copy(cc, vm), exprs[1].copy(cc, vm), value));
   }
 
   @Override
@@ -103,8 +104,9 @@ public final class Replace extends Update {
   }
 
   @Override
-  public String toString() {
-    return REPLACE + (value ? ' ' + VALUEE + ' ' + OF : "") +
-      ' ' + NODE + ' ' + exprs[0] + ' ' + WITH + ' ' + exprs[1];
+  public void plan(final QueryString qs) {
+    qs.token(REPLACE);
+    if(value) qs.token(VALUEE).token(OF);
+    qs.token(NODE).token(exprs[0]).token(WITH).token(exprs[1]);
   }
 }

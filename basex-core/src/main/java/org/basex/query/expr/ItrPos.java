@@ -4,6 +4,7 @@ import static java.lang.Long.*;
 import static org.basex.query.QueryText.*;
 
 import org.basex.query.*;
+import org.basex.query.expr.CmpG.*;
 import org.basex.query.expr.CmpV.*;
 import org.basex.query.func.*;
 import org.basex.query.util.*;
@@ -16,12 +17,12 @@ import org.basex.util.*;
 import org.basex.util.hash.*;
 
 /**
- * Simple position check expression.
+ * Integer position range check.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
-public final class ItrPos extends Simple {
+public final class ItrPos extends Simple implements CmpPos {
   /** Minimum position (1 or larger). */
   final long min;
   /** Maximum position (inclusive, 1 or larger, never smaller than {@link #min}). */
@@ -34,7 +35,7 @@ public final class ItrPos extends Simple {
    * @param info input info
    */
   private ItrPos(final long min, final long max, final InputInfo info) {
-    super(info, SeqType.BLN_O);
+    super(info, SeqType.BOOLEAN_O);
     this.min = min;
     this.max = max;
   }
@@ -66,7 +67,7 @@ public final class ItrPos extends Simple {
   /**
    * Tries to rewrite {@code fn:position() CMP number(s)} to this expression.
    * Returns an instance of this class, an optimized expression, or {@code null}
-   * @param expr expression to be checked
+   * @param expr positions to be matched
    * @param op comparator
    * @param ii input info
    * @return optimized expression or {@code null}
@@ -101,30 +102,42 @@ public final class ItrPos extends Simple {
   @Override
   public Bln item(final QueryContext qc, final InputInfo ii) throws QueryException {
     ctxValue(qc);
-    return Bln.get(matches(qc.focus.pos));
+    return Bln.get(test(qc.focus.pos, qc) != 0);
+  }
+
+  @Override
+  public boolean exact() {
+    return min == max;
+  }
+
+  @Override
+  public boolean simple() {
+    return true;
+  }
+
+  @Override
+  public int test(final long pos, final QueryContext qc) {
+    return pos == max ? 2 : pos >= min && pos <= max ? 1 : 0;
+  }
+
+  @Override
+  public Expr inline(final InlineContext ic) {
+    return null;
   }
 
   @Override
   public ItrPos copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new ItrPos(min, max, info);
+    return copyType(new ItrPos(min, max, info));
   }
 
-  /**
-   * Returns false if no more results can be expected.
-   * @param pos current position
-   * @return result of check
-   */
-  public boolean skip(final long pos) {
-    return pos >= max;
-  }
-
-  /**
-   * Checks if the current position lies within the given position.
-   * @param pos current position
-   * @return result of check
-   */
-  public boolean matches(final long pos) {
-    return pos >= min && pos <= max;
+  @Override
+  public Expr invert(final CompileContext cc) throws QueryException {
+    if(exact()) {
+      final Expr pos = cc.function(Function.POSITION, info);
+      return new CmpG(pos, Int.get(min), OpG.NE, null, cc.sc(), info).optimize(cc);
+    }
+    return min == 1 ? get(max + 1, MAX_VALUE, info) :
+      max == MAX_VALUE ? get(1, min - 1, info) : this;
   }
 
   @Override
@@ -169,14 +182,16 @@ public final class ItrPos extends Simple {
   }
 
   @Override
-  public String toString() {
-    final StringBuilder sb = new StringBuilder().append(Function.POSITION).append(' ');
-    if(max == MAX_VALUE) {
-      sb.append(">= ").append(min);
+  public void plan(final QueryString qs) {
+    qs.function(Function.POSITION);
+    if(exact()) {
+      qs.token("=").token(min);
+    } else if(max == MAX_VALUE) {
+      qs.token(">=").token(min);
+    } else if(min == 1) {
+      qs.token("<=").token(max);
     } else {
-      sb.append("= ").append(min);
-      if(min != max) sb.append(' ').append(TO).append(' ').append(max);
+      qs.token("=").token(min).token(TO).token(max);
     }
-    return sb.toString();
   }
 }

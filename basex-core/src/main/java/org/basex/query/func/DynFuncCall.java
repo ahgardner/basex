@@ -21,7 +21,7 @@ import org.basex.util.hash.*;
 /**
  * Dynamic function call.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class DynFuncCall extends FuncCall {
@@ -81,9 +81,8 @@ public final class DynFuncCall extends FuncCall {
       if(ft.argTypes != null && ft.argTypes.length != nargs) {
         throw INVARITY_X_X_X.get(info, arguments(nargs), ft.argTypes.length, func.toErrorString());
       }
-      SeqType dt = ft.declType;
-      if(ft instanceof MapType) dt = dt.with(dt.occ.union(Occ.ZERO));
-      exprType.assign(dt);
+      final SeqType dt = ft.declType;
+      exprType.assign(ft instanceof MapType ? dt.union(Occ.ZERO) : dt);
     }
 
     // maps and arrays can only contain evaluated values, so this is safe
@@ -142,7 +141,7 @@ public final class DynFuncCall extends FuncCall {
    * Returns the function body expression.
    * @return body
    */
-  private Expr body() {
+  public Expr body() {
     return exprs[exprs.length - 1];
   }
 
@@ -175,9 +174,9 @@ public final class DynFuncCall extends FuncCall {
 
   @Override
   Value[] evalArgs(final QueryContext qc) throws QueryException {
-    final int last = exprs.length - 1;
-    final Value[] args = new Value[last];
-    for(int a = 0; a < last; a++) args[a] = exprs[a].value(qc);
+    final int el = exprs.length - 1;
+    final Value[] args = new Value[el];
+    for(int e = 0; e < el; e++) args[e] = exprs[e].value(qc);
     return args;
   }
 
@@ -202,17 +201,17 @@ public final class DynFuncCall extends FuncCall {
 
   @Override
   public void plan(final QueryPlan plan) {
-    plan.add(plan.create(this, TCL, tco), exprs);
+    plan.add(plan.create(this, TAILCALL, tco), exprs);
   }
 
   @Override
-  public String toString() {
-    final TokenBuilder tb = new TokenBuilder().add(body()).add('(');
-    final int last = exprs.length - 1;
-    for(int e = 0; e < last; e++) {
-      tb.add(exprs[e]);
-      if(e < last - 1) tb.add(", ");
+  public void plan(final QueryString qs) {
+    final int el = exprs.length - 1;
+    qs.token(exprs[el]).token('(');
+    for(int e = 0; e < el; e++) {
+      if(e > 0) qs.token(SEP);
+      qs.token(exprs[e]);
     }
-    return tb.add(')').toString();
+    qs.token(')');
   }
 }

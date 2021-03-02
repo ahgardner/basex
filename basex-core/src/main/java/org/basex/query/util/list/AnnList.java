@@ -9,7 +9,7 @@ import org.basex.util.list.*;
 /**
  * List of annotations.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class AnnList extends ObjectList<Ann, AnnList> {
@@ -109,10 +109,11 @@ public final class AnnList extends ObjectList<Ann, AnnList> {
     return new Ann[s];
   }
 
-  @Override
-  public String toString() {
-    final StringBuilder sb = new StringBuilder();
-    for(final Ann ann : this) sb.append(ann);
-    return sb.toString();
+  /**
+   * Adds the annotations to a query string.
+   * @param qs query string builder
+   */
+  public void plan(final QueryString qs) {
+    for(final Ann ann : this) ann.plan(qs);
   }
 }

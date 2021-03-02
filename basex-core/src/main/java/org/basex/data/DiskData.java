@@ -47,7 +47,7 @@ import org.basex.util.*;
  *   - NOT COMPRESSED: return external text unchanged
  * </pre>
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  * @author Tim Petrowsky
  */
@@ -373,6 +373,6 @@ public final class DiskData extends Data {
     final DataAccess store = text ? texts : values;
     final long offset = store.length();
     store.writeToken(offset, packed);
-    return packed != value ? Compress.COMPRESS | offset : offset;
+    return packed == value ? offset : Compress.COMPRESS | offset;
   }
 }

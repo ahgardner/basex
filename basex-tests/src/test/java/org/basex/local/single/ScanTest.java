@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 /**
  * This class benchmarks simple table scans.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class ScanTest extends SandboxTest {
@@ -27,8 +27,7 @@ public final class ScanTest extends SandboxTest {
    * Initializes the test database.
    * @throws IOException I/O exception
    */
-  @BeforeAll
-  public static void initDB() throws IOException {
+  @BeforeAll public static void initDB() throws IOException {
     /* generate test file. example:
      * <XML>
      *   <SUB>ndjkeibjmfeg</SUB>
@@ -67,32 +66,22 @@ public final class ScanTest extends SandboxTest {
   /**
    * Initializes the benchmark.
    */
-  @AfterAll
-  public static void finishDB() {
+  @AfterAll public static void finishDB() {
     execute(new DropDB(NAME));
   }
 
-  /**
-   * Counts the number of elements with text node as child.
-   */
-  @Test
-  public void elementsWithText() {
+  /** Counts the number of elements with text node as child. */
+  @Test public void elementsWithText() {
     run("count( //*[text()] )");
   }
 
-  /**
-   * Counts the number of elements with text node or attribute as child.
-   */
-  @Test
-  public void elementsWithTextOrAttribute() {
+  /** Counts the number of elements with text node or attribute as child. */
+  @Test public void elementsWithTextOrAttribute() {
     run("count( descendant::*//(*|@*) )");
   }
 
-  /**
-   * Counts the number of elements the text of which does not equal a given string.
-   */
-  @Test
-  public void textNotEquals() {
+  /** Counts the number of elements the text of which does not equal a given string. */
+  @Test public void textNotEquals() {
     run("count( //*[text() != ' '] )");
   }
 

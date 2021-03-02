@@ -21,7 +21,7 @@ import org.basex.util.list.*;
 /**
  * Server-side client session in the client-server architecture.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Andreas Weiler
  * @author Christian Gruen
  */
@@ -198,7 +198,7 @@ public final class ClientListener extends Thread implements ClientInfo {
         context.blocker.remove(address);
         context.sessions.add(this);
       } else {
-        if(!name.isEmpty()) log(LogType.ERROR, ACCESS_DENIED);
+        if(!name.isEmpty()) log(LogType.ERROR, Util.info(ACCESS_DENIED_X, name));
         // delay users with wrong passwords
         context.blocker.delay(address);
         send(false);

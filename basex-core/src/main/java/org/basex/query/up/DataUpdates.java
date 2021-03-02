@@ -26,7 +26,7 @@ import org.basex.util.list.*;
  * are initiated within a snapshot. Regarding the XQUF specification it fulfills the purpose of
  * a 'pending update list'.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Lukas Kircher
  */
 final class DataUpdates {
@@ -70,13 +70,7 @@ final class DataUpdates {
   void add(final DataUpdate up, final MemData tmp) throws QueryException {
     if(up instanceof NodeUpdate) {
       for(final NodeUpdate nodeUp : ((NodeUpdate) up).substitute(tmp)) {
-        final int pre = nodeUp.pre;
-        NodeUpdates pc = nodeUpdates.get(pre);
-        if(pc == null) {
-          pc = new NodeUpdates();
-          nodeUpdates.put(pre, pc);
-        }
-        pc.add(nodeUp);
+        nodeUpdates.computeIfAbsent(nodeUp.pre, NodeUpdates::new).add(nodeUp);
       }
 
     } else if(up instanceof Put) {
@@ -100,11 +94,11 @@ final class DataUpdates {
 
   /**
    * Checks updates for violations. If a violation is found, the complete update process is aborted.
-   * @param tmp temporary mem data
+   * @param memData temporary data instance
    * @param qc query context
    * @throws QueryException query exception
    */
-  void prepare(final MemData tmp, final QueryContext qc) throws QueryException {
+  void prepare(final MemData memData, final QueryContext qc) throws QueryException {
     // Prepare/check database operations
     for(final DBUpdate update : dbUpdates) update.prepare();
 
@@ -116,7 +110,7 @@ final class DataUpdates {
 
     for(int i = 0; i < sz; ++i) {
       final NodeUpdates updates = nodeUpdates.get(nodes.get(i));
-      for(final NodeUpdate update : updates.updates) update.prepare(tmp, qc);
+      for(final NodeUpdate update : updates.updates) update.prepare(memData, qc);
     }
 
     // check attribute duplicates
@@ -302,7 +296,7 @@ final class DataUpdates {
       final int uriId = data.nspaces.uriIdForPrefix(Token.prefix(nm), pre, data);
       if(uriId != 0) name.uri(data.nspaces.uri(uriId));
     }
-    names.add(name, NodeType.ATT);
+    names.add(name, NodeType.ATTRIBUTE);
   }
 
 }

@@ -12,7 +12,7 @@ import org.basex.util.*;
  * Abstract super class for all numeric items.
  * Useful for removing exceptions and unifying hash values.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public abstract class ANum extends Item {
@@ -109,6 +109,11 @@ public abstract class ANum extends Item {
   public abstract ANum round(int scale, boolean even);
 
   @Override
+  public final boolean comparable(final Item item) {
+    return item instanceof ANum;
+  }
+
+  @Override
   public Item test(final QueryContext qc, final InputInfo ii) {
     return dbl() == qc.focus.pos ? this : null;
   }
@@ -140,7 +145,7 @@ public abstract class ANum extends Item {
   }
 
   @Override
-  public final String toString() {
-    return Token.string(string(null));
+  public final void plan(final QueryString qs) {
+    qs.token(string(null));
   }
 }

@@ -9,12 +9,15 @@ import org.basex.query.value.item.*;
 /**
  * This class catches RESTXQ errors with the same priority.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 final class RestXqError implements Comparable<RestXqError> {
   /** Error tests. */
   private final ArrayList<NameTest> tests = new ArrayList<>(1);
+  /** Function for comparing tests. */
+  private static final Function<NameTest, Integer> COMPARE =
+      test -> test == null ? -1 : test.part().ordinal();
 
   /**
    * Adds a test if it has not been specified before.
@@ -60,8 +63,7 @@ final class RestXqError implements Comparable<RestXqError> {
 
   @Override
   public int compareTo(final RestXqError error) {
-    final Function<NameTest, Integer> prec = test -> test == null ? -1 : test.part.ordinal();
-    return prec.apply(error.tests.get(0)) - prec.apply(tests.get(0));
+    return COMPARE.apply(error.tests.get(0)) - COMPARE.apply(tests.get(0));
   }
 
   @Override

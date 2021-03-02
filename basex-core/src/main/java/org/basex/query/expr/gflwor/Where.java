@@ -1,5 +1,7 @@
 package org.basex.query.expr.gflwor;
 
+import static org.basex.query.QueryText.*;
+
 import org.basex.query.*;
 import org.basex.query.CompileContext.*;
 import org.basex.query.expr.*;
@@ -14,7 +16,7 @@ import org.basex.util.hash.*;
 /**
  * GFLWOR {@code where} clause, filtering tuples not satisfying the predicate.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class Where extends Clause {
@@ -27,7 +29,7 @@ public final class Where extends Clause {
    * @param info input info
    */
   public Where(final Expr expr, final InputInfo info) {
-    super(info, SeqType.BLN_O);
+    super(info, SeqType.BOOLEAN_O);
     this.expr = expr;
   }
 
@@ -66,8 +68,8 @@ public final class Where extends Clause {
   }
 
   @Override
-  public boolean inlineable(final Var var) {
-    return expr.inlineable(var);
+  public boolean inlineable(final InlineContext ic) {
+    return expr.inlineable(ic);
   }
 
   @Override
@@ -76,12 +78,11 @@ public final class Where extends Clause {
   }
 
   @Override
-  public Clause inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-    final Expr inlined = expr.inline(ei, ex, cc);
+  public Clause inline(final InlineContext ic) throws QueryException {
+    final Expr inlined = expr.inline(ic);
     if(inlined == null) return null;
     expr = inlined;
-    return optimize(cc);
+    return optimize(ic.cc);
   }
 
   @Override
@@ -106,7 +107,7 @@ public final class Where extends Clause {
   }
 
   @Override
-  void calcSize(final long[] minMax) {
+  public void calcSize(final long[] minMax) {
     minMax[0] = 0;
     if(expr == Bln.FALSE) minMax[1] = 0;
   }
@@ -127,7 +128,7 @@ public final class Where extends Clause {
   }
 
   @Override
-  public String toString() {
-    return QueryText.WHERE + ' ' + expr;
+  public void plan(final QueryString qs) {
+    qs.token(WHERE).token(expr);
   }
 }

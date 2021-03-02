@@ -8,7 +8,7 @@ import org.basex.util.*;
  * This is an efficient and memory-saving hash set for storing primitive integers.
  * It is related to the {@link TokenSet} class.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public class IntSet extends ASet {
@@ -26,7 +26,7 @@ public class IntSet extends ASet {
    * Constructor with initial capacity.
    * @param capacity array capacity (will be resized to a power of two)
    */
-  public IntSet(final int capacity) {
+  public IntSet(final long capacity) {
     super(capacity);
     keys = new int[capacity()];
   }

@@ -1,7 +1,5 @@
 package org.basex.query.expr.ft;
 
-import static org.basex.query.QueryText.*;
-
 import org.basex.query.*;
 import org.basex.query.expr.*;
 import org.basex.query.iter.*;
@@ -13,7 +11,7 @@ import org.basex.util.hash.*;
 /**
  * FTExtensionSelection expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class FTExtension extends FTExpr {
@@ -58,7 +56,7 @@ public final class FTExtension extends FTExpr {
   }
 
   @Override
-  public String toString() {
-    return String.valueOf(pragma) + ' ' + CURLY1 + ' ' +  exprs[0] + ' ' + CURLY2;
+  public void plan(final QueryString qs) {
+    qs.token(pragma).brace(exprs[0]);
   }
 }

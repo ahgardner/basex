@@ -8,7 +8,7 @@ import org.basex.util.*;
 /**
  * Java item.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class Jav extends Item {
@@ -50,8 +50,7 @@ public final class Jav extends Item {
   }
 
   @Override
-  public int diff(final Item item, final Collation coll, final InputInfo ii)
-      throws QueryException {
+  public int diff(final Item item, final Collation coll, final InputInfo ii) throws QueryException {
     return Token.diff(string(ii), item.string(ii));
   }
 
@@ -66,7 +65,7 @@ public final class Jav extends Item {
   }
 
   @Override
-  public String toString() {
-    return Util.info("\"%\"", value);
+  public void plan(final QueryString qs) {
+    qs.quoted(Token.token(value.toString()));
   }
 }

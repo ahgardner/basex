@@ -14,7 +14,7 @@ import org.basex.util.*;
 /**
  * Global HTTP context information.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class HTTPContext {
@@ -125,7 +125,11 @@ public final class HTTPContext {
    */
   public synchronized void close() {
     if(server != null) {
-      server.stop();
+      try {
+        server.stop();
+      } catch(final IOException ex) {
+        Util.stack(ex);
+      }
       server = null;
     }
     if(context != null) {

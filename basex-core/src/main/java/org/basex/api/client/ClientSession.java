@@ -25,7 +25,7 @@ import org.basex.util.*;
  * command to the server.</li>
  * </ul>
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public class ClientSession extends Session {
@@ -120,7 +120,7 @@ public class ClientSession extends Session {
     sout.flush();
 
     // receive success flag
-    if(!ok(bi)) throw new LoginException();
+    if(!ok(bi)) throw new LoginException(username);
   }
 
   @Override
@@ -259,6 +259,6 @@ public class ClientSession extends Session {
 
   @Override
   public String toString() {
-    return Prop.PROJECT_NAME + ":/" + socket.getLocalAddress() + ':' + socket.getPort();
+    return Prop.PROJECT + ":/" + socket.getLocalAddress() + ':' + socket.getPort();
   }
 }

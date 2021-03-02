@@ -12,7 +12,7 @@ import org.basex.io.out.*;
  * <p>In order to ensure a consistent representation of tokens in the project, all string
  * conversions should be done via the methods of this class.</p>
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class Token {
@@ -21,15 +21,15 @@ public final class Token {
   /** XML token. */
   public static final byte[] XML = token("xml");
   /** XML token with colon. */
-  public static final byte[] XMLC = token("xml:");
+  public static final byte[] XML_COLON = token("xml:");
   /** XMLNS token. */
   public static final byte[] XMLNS = token("xmlns");
   /** XMLNS token with colon. */
-  public static final byte[] XMLNSC = token("xmlns:");
+  public static final byte[] XMLNS_COLON = token("xmlns:");
   /** ID token. */
   public static final byte[] ID = token("id");
   /** IDRef token. */
-  public static final byte[] IDREF = token("ref");
+  public static final byte[] REF = token("ref");
   /** Token 'true'. */
   public static final byte[] TRUE = token("true");
   /** Token 'false'. */
@@ -39,19 +39,21 @@ public final class Token {
   /** Token 'INF'. */
   public static final byte[] INF = token("INF");
   /** Token '-INF'. */
-  public static final byte[] NINF = token("-INF");
+  public static final byte[] NEGATVE_INF = token("-INF");
   /** Token 'Infinity'. */
   public static final byte[] INFINITY = token("Infinity");
   /** Token '-Infinity'. */
-  public static final byte[] NINFINITY = token("-Infinity");
+  public static final byte[] NEGATIVE_INFINITY = token("-Infinity");
   /** Minimum long value. */
-  public static final byte[] MINLONG = token("-9223372036854775808");
+  public static final byte[] MIN_LONG = token("-9223372036854775808");
+  /** Minimum integer. */
+  public static final byte[] MIN_INT = token("-2147483648");
   /** Space. */
   public static final byte[] SPACE = { ' ' };
   /** Number '0'. */
   public static final byte[] ZERO = { '0' };
   /** Number '-0'. */
-  private static final byte[] MZERO = { '-', '0' };
+  public static final byte[] NEGATIVE_ZERO = { '-', '0' };
   /** Number '1'. */
   public static final byte[] ONE = { '1' };
   /** Slash. */
@@ -61,27 +63,44 @@ public final class Token {
   /** Dollar. */
   public static final byte[] DOLLAR = { '$' };
 
+  /** Comparator for byte arrays. */
+  public static final Comparator<byte[]> COMPARATOR = Token::diff;
+  /** Case-insensitive comparator for byte arrays. */
+  public static final Comparator<byte[]> LC_COMPARATOR = (o1, o2) -> diff(lc(o1), lc(o2));
   /** Unicode replacement codepoint (\\uFFFD). */
   public static final char REPLACEMENT = '\uFFFD';
 
+  /** US charset. */
+  public static final DecimalFormatSymbols LOC = new DecimalFormatSymbols(Locale.US);
+  /** Scientific double output. */
+  public static final DecimalFormat SD = new DecimalFormat("0.0##################E0", LOC);
+  /** Decimal double output. */
+  public static final DecimalFormat DD = new DecimalFormat("#####0.0################", LOC);
+  /** Scientific float output. */
+  public static final DecimalFormat SF = new DecimalFormat("0.0######E0", LOC);
+  /** Decimal float output. */
+  public static final DecimalFormat DF = new DecimalFormat("#####0.0######", LOC);
+
   /** Maximum length for hash calculation. */
-  private static final byte MAXLENGTH = 96;
+  private static final byte MAX_HASH_LENGTH = 96;
   /** Maximum values for converting tokens to integer values. */
-  private static final int MAXINT = Integer.MAX_VALUE / 10;
+  private static final int MAX_INT = Integer.MAX_VALUE / 10;
   /** Maximum values for converting tokens to long values. */
-  private static final long MAXLONG = Long.MAX_VALUE / 10;
+  private static final long MAX_LONG = Long.MAX_VALUE / 10;
 
   /** Hex codes. */
-  public static final byte[] HEX = token("0123456789ABCDEF");
+  public static final byte[] HEX_TABLE = token("0123456789ABCDEF");
   /** Reserved characters. */
-  private static final byte[] IRIRES = token("!#$%&*'()+,-./:;=?@[]~_");
+  private static final byte[] IRI_CHARACTERS = token("!#$%&*'()+,-./:;=?@[]~_");
   /** Reserved characters. */
-  private static final byte[] RES = token("-._~");
+  private static final byte[] URI_CHARACTERS = token("-._~");
 
-  /** Comparator for byte arrays. */
-  public static final Comparator<byte[]> COMP = Token::diff;
-  /** Case-insensitive comparator for byte arrays. */
-  public static final Comparator<byte[]> LC_COMP = (o1, o2) -> diff(lc(o1), lc(o2));
+  /** Character lengths. */
+  private static final int[] CHLEN = { 1, 1, 1, 1, 2, 2, 3, 4 };
+  /** Table with integer sizes. */
+  private static final int[] INTSIZE = {
+    9, 99, 999, 9999, 99999, 999999, 9999999, 99999999, 999999999, Integer.MAX_VALUE
+  };
 
   /** Hidden constructor. */
   private Token() { }
@@ -126,7 +145,7 @@ public final class Token {
     // input is assumed to be correct UTF8. if input contains codepoints
     // larger than Character.MAX_CODE_POINT, results might be unexpected.
 
-    final StringBuilder sb = new StringBuilder(length << 1);
+    final StringBuilder sb = new StringBuilder(Array.newCapacity(length));
     final int il = Math.min(start + length, token.length);
     for(int i = start; i < il; i += cl(token, i)) {
       final int cp = cp(token, i);
@@ -161,13 +180,13 @@ public final class Token {
    * @return byte array
    */
   public static byte[] token(final String string) {
-    final int l = string.length();
-    if(l == 0) return EMPTY;
-    final byte[] b = new byte[l];
-    for(int i = 0; i < l; ++i) {
-      final char c = string.charAt(i);
+    final int sl = string.length();
+    if(sl == 0) return EMPTY;
+    final byte[] b = new byte[sl];
+    for(int s = 0; s < sl; ++s) {
+      final char c = string.charAt(s);
       if(c > 0x7F) return utf8(string);
-      b[i] = (byte) c;
+      b[s] = (byte) c;
     }
     return b;
   }
@@ -192,7 +211,7 @@ public final class Token {
   private static byte[] utf8(final String string) {
     final char[] arr = string.toCharArray();
     final int al = arr.length;
-    final TokenBuilder tb = new TokenBuilder(al << 1);
+    final TokenBuilder tb = new TokenBuilder(Array.newCapacity(al));
     for(int c = 0; c < al; ++c) {
       final char ch = arr[c];
       tb.add(Character.isHighSurrogate(ch) && c < al - 1
@@ -276,9 +295,6 @@ public final class Token {
       (token[pos + 2] & 0x3F) << 6 | token[pos + 3] & 0x3F;
   }
 
-  /** Character lengths. */
-  private static final int[] CHLEN = { 1, 1, 1, 1, 2, 2, 3, 4 };
-
   /**
    * Returns the length of the specified UTF8 byte.
    * @param cp codepoint
@@ -305,10 +321,10 @@ public final class Token {
    */
   public static int[] cps(final byte[] token) {
     int pos = 0;
-    final int len = token.length;
-    final int[] cp = new int[len];
-    for(int i = 0; i < len; i += cl(token, i)) cp[pos++] = cp(token, i);
-    return pos < len ? Arrays.copyOf(cp, pos) : cp;
+    final int tl = token.length;
+    final int[] cp = new int[tl];
+    for(int i = 0; i < tl; i += cl(token, i)) cp[pos++] = cp(token, i);
+    return pos < tl ? Arrays.copyOf(cp, pos) : cp;
   }
 
   /**
@@ -370,27 +386,27 @@ public final class Token {
    */
   public static byte[] token(final int integer) {
     if(integer == 0) return ZERO;
-    if(integer == Integer.MIN_VALUE) return MININT;
+    if(integer == Integer.MIN_VALUE) return MIN_INT;
 
     int n = integer;
     final boolean m = n < 0;
     if(m) n = -n;
-    int j = numDigits(n);
-    if(m) ++j;
-    final byte[] num = new byte[j];
+    int nl = numDigits(n);
+    if(m) ++nl;
+    final byte[] num = new byte[nl];
 
     // faster division by 10 for values < 81920 (see Integer.getChars)
     while(n > 81919) {
       final int q = n / 10;
-      num[--j] = (byte) (n - (q << 3) - (q << 1) + '0');
+      num[--nl] = (byte) (n - (q << 3) - (q << 1) + '0');
       n = q;
     }
     while(n != 0) {
       final int q = n * 52429 >>> 19;
-      num[--j] = (byte) (n - (q << 3) - (q << 1) + '0');
+      num[--nl] = (byte) (n - (q << 3) - (q << 1) + '0');
       n = q;
     }
-    if(m) num[--j] = '-';
+    if(m) num[--nl] = '-';
     return num;
   }
 
@@ -405,12 +421,6 @@ public final class Token {
     }
   }
 
-  /** Minimum integer. */
-  private static final byte[] MININT = token("-2147483648");
-  /** Table with integer sizes. */
-  private static final int[] INTSIZE = { 9, 99, 999, 9999, 99999, 999999,
-      9999999, 99999999, 999999999, Integer.MAX_VALUE };
-
   /**
    * Creates a byte array representation from the specified long value,
    * using Java's standard method.
@@ -421,18 +431,6 @@ public final class Token {
     return integer >= Integer.MIN_VALUE && integer <= Integer.MAX_VALUE ?
         token((int) integer) : token(Long.toString(integer));
   }
-
-  /** US charset. */
-  public static final DecimalFormatSymbols LOC =
-    new DecimalFormatSymbols(Locale.US);
-  /** Scientific double output. */
-  public static final DecimalFormat SD = new DecimalFormat("0.0##################E0", LOC);
-  /** Decimal double output. */
-  public static final DecimalFormat DD = new DecimalFormat("#####0.0################", LOC);
-  /** Scientific float output. */
-  public static final DecimalFormat SF = new DecimalFormat("0.0######E0", LOC);
-  /** Decimal float output. */
-  public static final DecimalFormat DF = new DecimalFormat("#####0.0######", LOC);
 
   /**
    * Creates a byte array representation from the specified double value.
@@ -486,8 +484,8 @@ public final class Token {
    */
   private static byte[] tok(final double value) {
     if(value == Double.POSITIVE_INFINITY) return INF;
-    if(value == Double.NEGATIVE_INFINITY) return NINF;
-    if(value == 0) return 1 / value > 0 ? ZERO : MZERO;
+    if(value == Double.NEGATIVE_INFINITY) return NEGATVE_INF;
+    if(value == 0) return 1 / value > 0 ? ZERO : NEGATIVE_ZERO;
     if(Double.isNaN(value)) return NAN;
     final double a = Math.abs(value);
     if(a < 1.0e6) {
@@ -570,7 +568,7 @@ public final class Token {
   /**
    * Converts the specified token into an long value.
    * {@link Long#MIN_VALUE} is returned if the input is invalid.
-   * Note that this may also be the actual value ({@link #MINLONG}).
+   * Note that this may also be the actual value ({@link #MIN_LONG}).
    * @param token token to be converted
    * @return resulting long value
    */
@@ -581,7 +579,7 @@ public final class Token {
   /**
    * Converts the specified token into an long value.
    * {@link Long#MIN_VALUE} is returned if the input is invalid.
-   * Note that this may also be the actual value ({@link #MINLONG}).
+   * Note that this may also be the actual value ({@link #MIN_LONG}).
    * @param token token to be converted
    * @param start first byte to be parsed
    * @param end last byte to be parsed - exclusive
@@ -598,7 +596,7 @@ public final class Token {
     for(; p < end; ++p) {
       final byte b = token[p];
       if(b < '0' || b > '9') break;
-      if(v >= MAXLONG && (b > '7' || v > MAXLONG)) return Long.MIN_VALUE;
+      if(v >= MAX_LONG && (b > '7' || v > MAX_LONG)) return Long.MIN_VALUE;
       v = (v << 3) + (v << 1) + b - '0';
     }
     while(p < end && ws(token[p])) ++p;
@@ -634,7 +632,7 @@ public final class Token {
     for(; p < end; ++p) {
       final byte b = token[p];
       if(b < '0' || b > '9') break;
-      if(v >= MAXINT && (b > '7' || v > MAXINT)) return Integer.MIN_VALUE;
+      if(v >= MAX_INT && (b > '7' || v > MAX_INT)) return Integer.MIN_VALUE;
       v = (v << 3) + (v << 1) + b - '0';
     }
     while(p < end && ws(token[p])) ++p;
@@ -648,7 +646,7 @@ public final class Token {
    */
   public static int hash(final byte[] token) {
     int h = 0;
-    final int l = Math.min(token.length, MAXLENGTH);
+    final int l = Math.min(token.length, MAX_HASH_LENGTH);
     for(int i = 0; i != l; ++i) h = (h << 5) - h + token[i];
     return h;
   }
@@ -1058,9 +1056,9 @@ public final class Token {
    * @return resulting token
    */
   public static byte[] concat(final byte[]... tokens) {
-    int s = 0;
-    for(final byte[] token : tokens) s += token.length;
-    final byte[] tmp = new byte[s];
+    int sl = 0;
+    for(final byte[] token : tokens) sl += token.length;
+    final byte[] tmp = new byte[sl];
     int i = 0;
     for(final byte[] token : tokens) {
       final int tl = token.length;
@@ -1117,9 +1115,9 @@ public final class Token {
    * @return normalized token
    */
   public static byte[] normalize(final byte[] token) {
-    final int l = token.length;
-    if(l == 0) return token;
-    final byte[] tmp = new byte[l];
+    final int tl = token.length;
+    if(tl == 0) return token;
+    final byte[] tmp = new byte[tl];
     int c = 0;
     boolean ws1 = true;
     for(final byte b : token) {
@@ -1129,7 +1127,7 @@ public final class Token {
       ws1 = ws2;
     }
     if(c > 0 && ws(tmp[c - 1])) --c;
-    return c == l ? tmp : Arrays.copyOf(tmp, c);
+    return c == tl ? tmp : Arrays.copyOf(tmp, c);
   }
 
   /**
@@ -1262,7 +1260,7 @@ public final class Token {
   public static byte[] encodeUri(final byte[] token, final boolean iri) {
     final TokenBuilder tb = new TokenBuilder();
     for(final byte b : token) {
-      if(letterOrDigit(b) || contains(iri ? IRIRES : RES, b)) tb.addByte(b);
+      if(letterOrDigit(b) || contains(iri ? IRI_CHARACTERS : URI_CHARACTERS, b)) tb.addByte(b);
       else hex(tb, b);
     }
     return tb.finish();
@@ -1289,8 +1287,8 @@ public final class Token {
    */
   private static void hex(final TokenBuilder tb, final byte value) {
     tb.add('%');
-    tb.addByte(HEX[(value & 0xFF) >> 4]);
-    tb.addByte(HEX[value & 0xFF & 15]);
+    tb.addByte(HEX_TABLE[(value & 0xFF) >> 4]);
+    tb.addByte(HEX_TABLE[value & 0xFF & 15]);
   }
 
   /**
@@ -1301,12 +1299,11 @@ public final class Token {
    */
   public static byte[] hex(final byte[] value, final boolean uc) {
     final int vl = value.length, u = uc ? 0x37 : 0x57;
-    final byte[] data = new byte[vl << 1];
-    for(int v = 0, c = 0; v < vl; v++) {
-      int b = value[v] >> 4 & 0x0F;
-      data[c++] = (byte) (b + (b > 9 ? u : '0'));
-      b = value[v] & 0x0F;
-      data[c++] = (byte) (b + (b > 9 ? u : '0'));
+    final byte[] data = new byte[Array.checkCapacity((long) vl << 1)];
+    for(int v = 0, d = 0; v < vl; v++) {
+      final int a = value[v], b = a >> 4 & 0x0F, c = a & 0x0F;
+      data[d++] = (byte) (b + (b > 9 ? u : '0'));
+      data[d++] = (byte) (c + (c > 9 ? u : '0'));
     }
     return data;
   }

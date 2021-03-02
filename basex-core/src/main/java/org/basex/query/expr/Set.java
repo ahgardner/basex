@@ -4,7 +4,6 @@ import static org.basex.query.QueryText.*;
 
 import java.util.*;
 
-import org.basex.data.*;
 import org.basex.query.*;
 import org.basex.query.expr.path.*;
 import org.basex.query.func.*;
@@ -21,7 +20,7 @@ import org.basex.util.*;
 /**
  * Set expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 abstract class Set extends Arr {
@@ -34,7 +33,7 @@ abstract class Set extends Arr {
    * @param exprs expressions
    */
   Set(final InputInfo info, final Expr[] exprs) {
-    super(info, SeqType.NOD_ZM, exprs);
+    super(info, SeqType.NODE_ZM, exprs);
   }
 
   @Override
@@ -134,7 +133,7 @@ abstract class Set extends Arr {
 
     // try to merge node tests
     if(this instanceof Union) {
-      final ArrayList<Test> list = new ArrayList<>(sl);
+      final ArrayList<Test> tests = new ArrayList<>(sl);
       int s = -1;
       while(++s < sl) {
         final Step step = steps.get(s);
@@ -144,10 +143,10 @@ abstract class Set extends Arr {
         } else if(!Arrays.equals(preds, step.exprs)) {
           break;
         }
-        list.add(step.test);
+        tests.add(step.test);
       }
       // all steps were parsed. try to merge tests
-      if(s == sl) test = Test.get(list);
+      if(s == sl) test = Test.get(tests.toArray(new Test[0]));
     }
 
     // try to merge first predicates of all steps
@@ -168,7 +167,7 @@ abstract class Set extends Arr {
     }
     if(test == null || preds == null) return null;
 
-    final Expr step = new StepBuilder(info).axis(axis).test(test).preds(preds).finish(cc, root);
+    final Expr step = Step.get(cc, root, info, axis, test, preds);
     return Path.get(cc, info, root, step);
   }
 
@@ -232,18 +231,13 @@ abstract class Set extends Arr {
   }
 
   @Override
-  public Data data() {
-    return data(exprs);
-  }
-
-  @Override
-  public void plan(final QueryPlan plan) {
+  public final void plan(final QueryPlan plan) {
     plan.add(plan.create(this, ITERATIVE, iterative), exprs);
   }
 
   @Override
-  public final String toString() {
-    return PAREN1 + toString(' ' + Util.className(this).toLowerCase(Locale.ENGLISH) + ' ') + PAREN2;
+  public final void plan(final QueryString qs) {
+    qs.tokens(exprs, ' ' + Util.className(this).toLowerCase(Locale.ENGLISH) + ' ', true);
   }
 
   /**

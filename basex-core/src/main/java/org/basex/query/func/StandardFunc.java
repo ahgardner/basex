@@ -34,16 +34,17 @@ import org.basex.query.var.*;
 import org.basex.util.*;
 import org.basex.util.hash.*;
 import org.basex.util.options.*;
+import org.basex.util.similarity.*;
 
 /**
  * Built-in functions.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public abstract class StandardFunc extends Arr {
   /** Minimum size of a loop that should not be unrolled. */
-  public static final int UNROLL_LIMIT = 10;
+  public static final int UNROLL_LIMIT = 5;
 
   /** Function definition. */
   public FuncDefinition definition;
@@ -81,13 +82,13 @@ public abstract class StandardFunc extends Arr {
     simplifyArgs(cc);
 
     final Expr expr = opt(cc);
-    return cc.replaceWith(this,
+    return
       // return optimized expression
-      expr != this ? expr :
+      expr != this ? cc.replaceWith(this, expr) :
       // pre-evaluate function
-      allAreValues(definition.seqType.occ.max > 1) && isSimple() ? value(cc.qc) :
+      allAreValues(definition.seqType.occ.max > 1) && isSimple() ? cc.preEval(this) :
       // return original function
-      this);
+      this;
   }
 
   /**
@@ -102,8 +103,8 @@ public abstract class StandardFunc extends Arr {
       // consider variable-size parameters
       final int p = Math.min(e, definition.params.length - 1);
       final Type type = definition.params[p].type;
-      if(type.instanceOf(AtomType.AAT)) {
-        final Simplify mode = type.instanceOf(AtomType.NUM) ? Simplify.NUMBER : Simplify.ATOM;
+      if(type.instanceOf(AtomType.ANY_ATOMIC_TYPE)) {
+        final Simplify mode = type.instanceOf(AtomType.NUMERIC) ? Simplify.NUMBER : Simplify.STRING;
         exprs[e] = exprs[e].simplifyFor(mode, cc);
       }
     }
@@ -133,7 +134,7 @@ public abstract class StandardFunc extends Arr {
    * and adjusts the occurrence indicator if the argument will always yield one item.
    * @return original expression or function argument
    */
-  protected Expr optFirst() {
+  protected final Expr optFirst() {
     return optFirst(true, true, null);
   }
 
@@ -150,12 +151,12 @@ public abstract class StandardFunc extends Arr {
    * @param value context value (ignored if {@code null})
    * @return original expression or function argument
    */
-  protected Expr optFirst(final boolean occ, final boolean atom, final Value value) {
+  protected final Expr optFirst(final boolean occ, final boolean atom, final Value value) {
     final Expr expr = exprs.length > 0 ? exprs[0] : value;
     if(expr != null) {
       final SeqType st = expr.seqType();
       if(st.zero()) return expr;
-      if(occ && st.oneOrMore() && !(atom && st.mayBeArray())) exprType.assign(Occ.ONE);
+      if(occ && st.oneOrMore() && !(atom && st.mayBeArray())) exprType.assign(Occ.EXACTLY_ONE);
     }
     return this;
   }
@@ -212,7 +213,7 @@ public abstract class StandardFunc extends Arr {
    * @return old or new expression
    * @throws QueryException query context
    */
-  public Expr coerceFunc(final Expr expr, final CompileContext cc, final SeqType declType,
+  public final Expr coerceFunc(final Expr expr, final CompileContext cc, final SeqType declType,
       final SeqType... argTypes) throws QueryException {
 
     // check if argument is function item
@@ -261,17 +262,6 @@ public abstract class StandardFunc extends Arr {
   }
 
   /**
-   * Returns the specified argument, or the context value if it does not exist.
-   * @param i index of argument
-   * @param qc query context
-   * @return expression
-   * @throws QueryException query exception
-   */
-  protected final Expr ctxArg(final int i, final QueryContext qc) throws QueryException {
-    return exprs.length == i ? ctxValue(qc) : exprs[i];
-  }
-
-  /**
    * Checks if the specified item has the specified Date type.
    * If it is item, the specified Date is returned.
    * @param item item to be checked
@@ -280,7 +270,7 @@ public abstract class StandardFunc extends Arr {
    * @return date
    * @throws QueryException query exception
    */
-  protected ADate toDate(final Item item, final AtomType type, final QueryContext qc)
+  protected final ADate toDate(final Item item, final AtomType type, final QueryContext qc)
       throws QueryException {
     return (ADate) (item.type.isUntyped() ? type.cast(item, qc, sc, info) : checkType(item, type));
   }
@@ -293,7 +283,7 @@ public abstract class StandardFunc extends Arr {
    * @throws QueryException query exception
    */
   protected final DBNode toDBNode(final Item item) throws QueryException {
-    if(checkNoEmpty(item, NodeType.NOD) instanceof DBNode) return (DBNode) item;
+    if(checkNoEmpty(item, NodeType.NODE) instanceof DBNode) return (DBNode) item;
     throw DB_NODE_X.get(info, item);
   }
 
@@ -380,9 +370,7 @@ public abstract class StandardFunc extends Arr {
    * @return query contents and URL
    * @throws QueryException query exception
    */
-  protected final IOContent toQuery(final byte[] uri, final QueryContext qc)
-      throws QueryException {
-
+  protected final IOContent toQuery(final byte[] uri, final QueryContext qc) throws QueryException {
     checkAdmin(qc);
     final IO io = checkPath(uri);
     try {
@@ -416,13 +404,15 @@ public abstract class StandardFunc extends Arr {
       throws QueryException {
 
     if(i >= exprs.length) return null;
-    final String encoding = string(toToken(exprs[i], qc));
+    final byte[] encoding = toToken(exprs[i], qc);
     try {
-      if(Charset.isSupported(encoding)) return Strings.normEncoding(encoding);
+      final String enc = string(toToken(exprs[i], qc));
+      if(Charset.isSupported(enc)) return Strings.normEncoding(enc);
     } catch(final IllegalArgumentException ignored) {
       /* character set is invalid or unknown (e.g. empty string) */
     }
-    throw err.get(info, encoding);
+    throw err.get(info, QueryError.similar(encoding,
+        Levenshtein.similar(encoding, Strings.encodings())));
   }
 
   /**
@@ -566,7 +556,7 @@ public abstract class StandardFunc extends Arr {
    * @throws QueryException query exception
    */
   protected final long dateTimeToMs(final Expr expr, final QueryContext qc) throws QueryException {
-    final Dtm dtm = (Dtm) checkType(expr, qc, AtomType.DTM);
+    final Dtm dtm = (Dtm) checkType(expr, qc, AtomType.DATE_TIME);
     if(dtm.yea() > 292278993) throw INTRANGE_X.get(info, dtm.yea());
     return dtm.toJava().toGregorianCalendar().getTimeInMillis();
   }
@@ -582,17 +572,8 @@ public abstract class StandardFunc extends Arr {
     return visitor.lock(db, false);
   }
 
-  /**
-   * Returns the arguments of a standard function.
-   * @param func functions argument
-   * @return arguments
-   */
-  protected static Expr[] args(final Expr func) {
-    return ((StandardFunc) func).exprs;
-  }
-
   @Override
-  public boolean equals(final Object obj) {
+  public final boolean equals(final Object obj) {
     return this == obj || obj instanceof StandardFunc &&
         definition == ((StandardFunc) obj).definition && super.equals(obj);
   }
@@ -608,8 +589,7 @@ public abstract class StandardFunc extends Arr {
   }
 
   @Override
-  public final String toString() {
-    return new TokenBuilder().add(definition.id()).add('(').
-        addSeparated(exprs, SEP).add(')').toString();
+  public final void plan(final QueryString qs) {
+    qs.token(definition.id()).params(exprs);
   }
 }

@@ -12,7 +12,7 @@ import org.basex.util.*;
 /**
  * Function implementation.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FnData extends ContextFn {
@@ -42,21 +42,36 @@ public final class FnData extends ContextFn {
       if(type == st.type) {
         // data('x')  ->  'x'
         // $string[data() = 'a']  ->  $string[. = 'a']
-        return context && cc.nestedFocus() ? new ContextValue(info).optimize(cc) : expr;
+        return context && cc.nestedFocus() ? ContextValue.get(cc, info) : expr;
       }
-      if(type != null) exprType.assign(type, st.occ, expr.size());
+      if(type != null) exprType.assign(SeqType.get(type, st.occ), expr.size());
     }
     return this;
   }
 
   @Override
+  protected void simplifyArgs(final CompileContext cc) throws QueryException {
+    // data(xs:untypedAtomic(E))  ->  data(E)
+    simplifyAll(Simplify.DATA, cc);
+  }
+
+  @Override
   public Expr simplifyFor(final Simplify mode, final CompileContext cc) throws QueryException {
-    if(mode == Simplify.ATOM || mode == Simplify.NUMBER) {
+    Expr expr = null;
+    final Expr expr1 = contextAccess() ? ContextValue.get(cc, info) : exprs[0];
+    if(mode == Simplify.DATA || mode == Simplify.STRING || mode == Simplify.NUMBER) {
       // data(<a/>) = ''  ->  <a/> = ''
-      if(!contextAccess()) return cc.simplify(this, exprs[0]);
       // A[B ! data() = '']  ->  A[B ! . = '']
-      if(cc.nestedFocus()) return new ContextValue(info).optimize(cc);
+      expr = expr1;
+    } else if(mode == Simplify.EBV || mode == Simplify.PREDICATE) {
+      // if(data($node))  ->  if($node/descendant::text())
+      expr = simplifyEbv(expr1, cc);
     }
-    return super.simplifyFor(mode, cc);
+    return expr != null ? cc.simplify(this, expr) : super.simplifyFor(mode, cc);
+  }
+
+  @Override
+  public boolean inlineable() {
+    return contextAccess() || exprs[contextArg()] instanceof ContextValue;
   }
 }

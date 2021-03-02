@@ -1,6 +1,7 @@
 package org.basex.query.expr.ft;
 
 import static org.basex.query.QueryError.*;
+import static org.basex.query.QueryText.*;
 
 import org.basex.query.*;
 import org.basex.query.CompileContext.*;
@@ -16,7 +17,7 @@ import org.basex.util.hash.*;
 /**
  * FTOptions expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FTWeight extends FTExpr {
@@ -96,8 +97,8 @@ public final class FTWeight extends FTExpr {
   }
 
   @Override
-  public boolean inlineable(final Var var) {
-    return weight.inlineable(var) && super.inlineable(var);
+  public boolean inlineable(final InlineContext ic) {
+    return weight.inlineable(ic) && super.inlineable(ic);
   }
 
   @Override
@@ -106,20 +107,19 @@ public final class FTWeight extends FTExpr {
   }
 
   @Override
-  public FTExpr inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-    boolean changed = inlineAll(ei, ex, exprs, cc);
-    final Expr inlined = weight.inline(ei, ex, cc);
+  public FTExpr inline(final InlineContext ic) throws QueryException {
+    boolean changed = ic.inline(exprs);
+    final Expr inlined = weight.inline(ic);
     if(inlined != null) {
       weight = inlined;
       changed = true;
     }
-    return changed ? optimize(cc) : null;
+    return changed ? optimize(ic.cc) : null;
   }
 
   @Override
   public FTExpr copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new FTWeight(info, exprs[0].copy(cc, vm), weight.copy(cc, vm));
+    return copyType(new FTWeight(info, exprs[0].copy(cc, vm), weight.copy(cc, vm)));
   }
 
   @Override
@@ -146,7 +146,7 @@ public final class FTWeight extends FTExpr {
   }
 
   @Override
-  public String toString() {
-    return exprs[0] + " " + QueryText.WEIGHT + " {" + weight + "} ";
+  public void plan(final QueryString qs) {
+    qs.token(exprs[0]).token(WEIGHT).brace(weight);
   }
 }

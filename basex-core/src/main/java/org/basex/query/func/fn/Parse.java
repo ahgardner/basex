@@ -5,7 +5,7 @@ import static org.basex.util.Token.*;
 
 import java.io.*;
 
-import org.basex.build.*;
+import org.basex.build.Parser;
 import org.basex.build.xml.*;
 import org.basex.core.*;
 import org.basex.io.*;
@@ -15,11 +15,12 @@ import org.basex.query.func.*;
 import org.basex.query.value.item.*;
 import org.basex.query.value.node.*;
 import org.basex.query.value.seq.*;
+import org.xml.sax.*;
 
 /**
  * Parse functions.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public abstract class Parse extends StandardFunc {
@@ -32,7 +33,7 @@ public abstract class Parse extends StandardFunc {
    *   if availability is checked
    * @throws QueryException query exception
    */
-  Item unparsedText(final QueryContext qc, final boolean check, final boolean encoding)
+  final Item unparsedText(final QueryContext qc, final boolean check, final boolean encoding)
       throws QueryException {
 
     checkCreate(qc);
@@ -90,7 +91,7 @@ public abstract class Parse extends StandardFunc {
    * @return result or {@link Empty#VALUE}
    * @throws QueryException query exception
    */
-  Item parseXml(final QueryContext qc, final boolean frag) throws QueryException {
+  final Item parseXml(final QueryContext qc, final boolean frag) throws QueryException {
     final byte[] token = toTokenOrNull(exprs[0], qc);
     if(token == null) return Empty.VALUE;
 
@@ -98,7 +99,10 @@ public abstract class Parse extends StandardFunc {
     try {
       return new DBNode(frag ? new XMLParser(io, MainOptions.get(), true) : Parser.xmlParser(io));
     } catch(final IOException ex) {
-      throw SAXERR_X.get(info, ex);
+      final QueryException qe = SAXERR_X.get(info, ex);
+      final Throwable th = ex.getCause();
+      if(th instanceof SAXException) qe.value(Str.get(th.toString()));
+      throw qe;
     }
   }
 }

@@ -14,7 +14,7 @@ import org.basex.util.list.*;
 /**
  * Formatting functions.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 abstract class Format extends StandardFunc {
@@ -25,7 +25,7 @@ abstract class Format extends StandardFunc {
    * @return string or {@link Empty#VALUE}
    * @throws QueryException query exception
    */
-  Item formatDate(final AtomType tp, final QueryContext qc) throws QueryException {
+  final Item formatDate(final AtomType tp, final QueryContext qc) throws QueryException {
     final int el = exprs.length;
     if(el == 3 || el == 4) throw Functions.wrongArity(definition, el, new IntList(), info);
 
@@ -49,7 +49,7 @@ abstract class Format extends StandardFunc {
   }
 
   @Override
-  protected Expr opt(final CompileContext cc) {
+  protected final Expr opt(final CompileContext cc) {
     return optFirst();
   }
 }

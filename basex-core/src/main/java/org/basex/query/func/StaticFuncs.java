@@ -21,27 +21,19 @@ import org.basex.util.similarity.*;
 /**
  * Container for user-defined functions.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class StaticFuncs extends ExprInfo {
   /** User-defined functions. */
   private final TokenObjMap<FuncCache> funcs = new TokenObjMap<>();
-
-  /**
-   * Returns the signature of the function with the given name and arity.
-   * @param name function name
-   * @param arity function arity
-   * @return the function's signature
-   */
-  static byte[] signature(final QNm name, final long arity) {
-    return concat(name.prefixId(), '#', arity);
-  }
+  /** User-defined functions. */
+  private Map<StaticFunc, ArrayList<StaticFuncCall>> calls;
 
   /**
    * Declares a new user-defined function.
    * @param anns annotations
-   * @param nm function name
+   * @param qname function name
    * @param params formal parameters
    * @param type declared return type (can be {@code null})
    * @param expr function body (can be {@code null})
@@ -51,16 +43,16 @@ public final class StaticFuncs extends ExprInfo {
    * @return static function reference
    * @throws QueryException query exception
    */
-  public StaticFunc declare(final AnnList anns, final QNm nm, final Var[] params,
+  public StaticFunc declare(final AnnList anns, final QNm qname, final Var[] params,
       final SeqType type, final Expr expr, final String doc, final VarScope vs,
       final InputInfo ii) throws QueryException {
 
-    final byte[] uri = nm.uri();
-    if(uri.length == 0) throw FUNNONS_X.get(ii, nm.string());
-    if(NSGlobal.reserved(uri) || Functions.getBuiltIn(nm) != null)
-      throw FNRESERVED_X.get(ii, nm.string());
+    final byte[] uri = qname.uri();
+    if(uri.length == 0) throw FUNNONS_X.get(ii, qname.string());
+    if(NSGlobal.reserved(uri) || Functions.getBuiltIn(qname) != null)
+      throw FNRESERVED_X.get(ii, qname.string());
 
-    final StaticFunc sf = new StaticFunc(anns, nm, params, type, expr, doc, vs, ii);
+    final StaticFunc sf = new StaticFunc(anns, qname, params, type, expr, doc, vs, ii);
     final byte[] sig = sf.id();
     final FuncCache fc = funcs.get(sig);
     if(fc != null) fc.setFunc(sf);
@@ -70,44 +62,36 @@ public final class StaticFuncs extends ExprInfo {
 
   /**
    * Creates a call to an already declared or referenced function.
-   * @param name name of the function
+   * @param qname name of the function
    * @param args optional arguments
    * @param sc static context
    * @param ii input info
    * @return reference if the function is known, {@code null} otherwise
    * @throws QueryException query exception
    */
-  TypedFunc funcCall(final QNm name, final Expr[] args, final StaticContext sc,
+  TypedFunc funcCall(final QNm qname, final Expr[] args, final StaticContext sc,
       final InputInfo ii) throws QueryException {
 
     // check if function has already been declared
-    final FuncCache fc = funcs.get(signature(name, args.length));
-    return fc == null ? null : fc.newCall(name, args, sc, ii);
+    final FuncCache fc = funcs.get(signature(qname, args.length));
+    return fc == null ? null : fc.newCall(qname, args, sc, ii);
   }
 
   /**
    * Returns a function call to the function with the given name and arity.
-   * @param name function name
+   * @param qname function name
    * @param args arguments
    * @param sc static context of the function call
    * @param ii input info
    * @return function call
    * @throws QueryException query exception
    */
-  TypedFunc undeclaredFuncCall(final QNm name, final Expr[] args, final StaticContext sc,
+  TypedFunc undeclaredFuncCall(final QNm qname, final Expr[] args, final StaticContext sc,
       final InputInfo ii) throws QueryException {
 
-    if(NSGlobal.reserved(name.uri())) {
-      final QueryException qe = similarError(name, ii);
-      if(qe != null) throw qe;
-    }
-    final byte[] sig = signature(name, args.length);
-    FuncCache fc = funcs.get(sig);
-    if(fc == null) {
-      fc = new FuncCache(null);
-      funcs.put(sig, fc);
-    }
-    return fc.newCall(name, args, sc, ii);
+    if(NSGlobal.reserved(qname.uri())) throw similarError(qname, ii);
+    final byte[] sig = signature(qname, args.length);
+    return funcs.computeIfAbsent(sig, () -> new FuncCache(null)).newCall(qname, args, sc, ii);
   }
 
   /**
@@ -116,12 +100,7 @@ public final class StaticFuncs extends ExprInfo {
    */
   public void registerFuncLiteral(final Closure literal) {
     final byte[] sig = signature(literal.funcName(), literal.arity());
-    FuncCache cache = funcs.get(sig);
-    if(cache == null) {
-      cache = new FuncCache(null);
-      funcs.put(sig, cache);
-    }
-    cache.literals.add(literal);
+    funcs.computeIfAbsent(sig, () -> new FuncCache(null)).literals.add(literal);
   }
 
   /**
@@ -137,17 +116,13 @@ public final class StaticFuncs extends ExprInfo {
         // raise error (no function found)...
         final IntList arities = new IntList();
         for(final FuncCache ofc : funcs.values()) {
-          if(fc != ofc && ofc.func != null && call.name.eq(ofc.name()))
+          if(fc != ofc && ofc.func != null && call.name.eq(ofc.qname()))
             arities.add(ofc.func.arity());
         }
-        // known function, wrong number of arguments
-        if(!arities.isEmpty())
-          throw Functions.wrongArity(call.name.string(), call.exprs.length, arities, call.info);
-
         // function is unknown: find function with similar name
-        final QNm nm = call.name;
-        final QueryException qe = similarError(nm, call.info);
-        throw qe != null ? qe : WHICHFUNC_X.get(call.info, nm.prefixString());
+        if(arities.isEmpty()) throw similarError(call.name, call.info);
+        // wrong number of arguments
+        throw Functions.wrongArity(call.name.string(), call.exprs.length, arities, call.info);
       }
 
       if(call != null) {
@@ -167,53 +142,85 @@ public final class StaticFuncs extends ExprInfo {
   }
 
   /**
-   * Compiles the used functions.
+   * Compiles all functions.
    * @param cc compilation context
    */
-  public void compile(final CompileContext cc) {
-    compile(cc, false);
+  public void compileAll(final CompileContext cc) {
+    for(final FuncCache fc : funcs.values()) fc.func.comp(cc);
   }
 
   /**
-   * Compiles all functions.
+   * Compiles all referenced functions.
    * @param cc compilation context
-   * @param all compile all functions (not only used ones)
    */
-  public void compile(final CompileContext cc, final boolean all) {
+  public void compile(final CompileContext cc) {
     for(final FuncCache fc : funcs.values()) {
-      if(all || !fc.calls.isEmpty()) fc.func.comp(cc);
+      if(!fc.calls.isEmpty()) {
+        fc.func.comp(cc);
+        fc.func.optimize(cc);
+      }
     }
   }
 
   /**
    * Returns the function with the given name and arity.
-   * @param name function name
+   * @param qname function name
    * @param arity function arity
    * @return function if found, {@code null} otherwise
    */
-  public StaticFunc get(final QNm name, final long arity) {
-    final FuncCache fc = funcs.get(signature(name, arity));
+  public StaticFunc get(final QNm qname, final long arity) {
+    final FuncCache fc = funcs.get(signature(qname, arity));
     return fc != null ? fc.func : null;
   }
 
   /**
+   * Returns the unions of the sequences types for function calls of the specified function.
+   * @param func function
+   * @return sequence types or {@code null}
+   */
+  public SeqType[] seqTypes(final StaticFunc func) {
+    // initialize cache for direct lookups of function calls
+    if(calls == null) {
+      calls = new IdentityHashMap<>(funcs.size());
+      for(final FuncCache fc : funcs.values()) {
+        if(func.params.length > 0 && !fc.calls.isEmpty()) calls.put(fc.func, fc.calls);
+      }
+    }
+
+    final ArrayList<StaticFuncCall> sfcs = calls.get(func);
+    if(sfcs == null) return null;
+
+    final int sl = func.params.length;
+    final SeqType[] seqTypes = new SeqType[sl];
+    for(final StaticFuncCall sfc : sfcs) {
+      for(int s = 0; s < sl; s++) {
+        final SeqType st = sfc.arg(s).seqType(), stOld = seqTypes[s];
+        seqTypes[s] = stOld == null ? st : stOld.union(st);
+      }
+    }
+    return seqTypes;
+  }
+
+  /**
    * Throws an exception if the name of a function is similar to the specified function name.
-   * @param name function name
+   * @param qname function name
    * @param ii input info
    * @return exception
    */
-  public QueryException similarError(final QNm name, final InputInfo ii) {
-    // find local functions
-    final Levenshtein ls = new Levenshtein();
-    final byte[] nm = lc(name.local());
+  public QueryException similarError(final QNm qname, final InputInfo ii) {
+    // check local functions
+    final ArrayList<QNm> list = new ArrayList<>();
     for(final FuncCache fc : funcs.values()) {
       final StaticFunc sf = fc.func;
-      if(sf != null && sf.expr != null && ls.similar(nm, lc(sf.name.local()))) {
-        return FUNCSIMILAR_X_X.get(ii, name.prefixString(), sf.name.prefixString());
-      }
+      if(sf != null && sf.expr != null) list.add(sf.name);
     }
-    // find global function
-    return Functions.similarError(name, ii);
+    final Object similar = Levenshtein.similar(qname.local(), list.toArray(new QNm[0]),
+        o -> ((QNm) o).local());
+
+    // return error for local or global function
+    return WHICHFUNC_X.get(ii, similar != null ?
+      similar(qname.prefixString(), ((QNm) similar).prefixString()) :
+      Functions.similar(qname));
   }
 
   /**
@@ -230,18 +237,28 @@ public final class StaticFuncs extends ExprInfo {
 
   @Override
   public void plan(final QueryPlan plan) {
-    if(!funcs.isEmpty()) plan.add(plan.create(this), funcs);
+    if(funcs.isEmpty()) return;
+
+    final ArrayList<ExprInfo> list = new ArrayList<>(funcs.size());
+    for(final FuncCache fc : funcs.values()) list.add(fc.func);
+    plan.add(plan.create(this), list.toArray());
   }
 
   @Override
-  public String toString() {
-    final StringBuilder sb = new StringBuilder();
+  public void plan(final QueryString qs) {
     for(final FuncCache fc : funcs.values()) {
-      if(fc.func != null && fc.func.compiled()) {
-        sb.append(fc.func).append(Text.NL);
-      }
+      if(fc.func != null && fc.func.compiled()) qs.token(fc.func).token(Text.NL);
     }
-    return sb.toString();
+  }
+
+  /**
+   * Returns the signature of the function with the given name and arity.
+   * @param qname function name
+   * @param arity function arity
+   * @return the function's signature
+   */
+  static byte[] signature(final QNm qname, final long arity) {
+    return concat(qname.prefixId(), '#', arity);
   }
 
   /** Function cache. */
@@ -276,17 +293,17 @@ public final class StaticFuncs extends ExprInfo {
 
     /**
      * Creates a new call to this function.
-     * @param name function name
+     * @param qname function name
      * @param args arguments
      * @param sc static context
      * @param ii input info
      * @return function call
      * @throws QueryException query exception
      */
-    public TypedFunc newCall(final QNm name, final Expr[] args, final StaticContext sc,
+    public TypedFunc newCall(final QNm qname, final Expr[] args, final StaticContext sc,
         final InputInfo ii) throws QueryException {
 
-      final StaticFuncCall call = new StaticFuncCall(name, args, sc, ii);
+      final StaticFuncCall call = new StaticFuncCall(qname, args, sc, ii);
       calls.add(call);
       // [LW] should be deferred until the actual types are known (i.e. compile time)
       return func != null ? new TypedFunc(call.init(func), func.anns) : new TypedFunc(call);
@@ -296,7 +313,7 @@ public final class StaticFuncs extends ExprInfo {
      * Returns the function's name.
      * @return function name
      */
-    public QNm name() {
+    public QNm qname() {
       return func != null ? func.name : calls.get(0).name;
     }
   }

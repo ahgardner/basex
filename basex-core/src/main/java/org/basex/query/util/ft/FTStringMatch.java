@@ -3,7 +3,7 @@ package org.basex.query.util.ft;
 /**
  * Single full-text string match.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FTStringMatch implements Comparable<FTStringMatch> {
@@ -61,8 +61,10 @@ public final class FTStringMatch implements Comparable<FTStringMatch> {
 
   @Override
   public String toString() {
-    final StringBuilder sb = new StringBuilder().append(pos);
-    sb.append(':').append(start).append('-').append(end);
-    return exclude ? "not(" + sb + ')' : sb.toString();
+    final StringBuilder sb = new StringBuilder();
+    if(exclude) sb.append("not(");
+    sb.append(pos).append(':').append(start).append('-').append(end);
+    if(exclude) sb.append(')');
+    return sb.toString();
   }
 }

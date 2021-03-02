@@ -18,7 +18,7 @@ import org.basex.util.list.*;
 /**
  * Simple Thesaurus for full-text requests.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class Thesaurus {
@@ -39,33 +39,6 @@ public final class Thesaurus {
     RSHIPS.put("USE", "UF");
     RSHIPS.put("UF", "USE");
     RSHIPS.put("RT", "RT");
-  }
-
-  /** Thesaurus node. */
-  private static class ThesNode {
-    /** Related nodes. */
-    private ThesNode[] nodes = new ThesNode[1];
-    /** Relationships. */
-    private byte[][] rs = new byte[1][];
-    /** Term. */
-    private byte[] term;
-    /** Entries. */
-    private int size;
-
-    /**
-     * Adds a relationship to the node.
-     * @param n target node
-     * @param r relationship
-     */
-    private void add(final ThesNode n, final byte[] r) {
-      if(size == nodes.length) {
-        final int s = Array.newCapacity(size);
-        nodes = Array.copy(nodes, new ThesNode[s]);
-        rs = Array.copyOf(rs, s);
-      }
-      nodes[size] = n;
-      rs[size++] = r;
-    }
   }
 
   /** Input file. */
@@ -99,7 +72,7 @@ public final class Thesaurus {
     this.file = file;
     rel = res;
     this.min = min;
-    this.max = max;
+    this.max = Math.min(max, min + 100);
     this.ctx = ctx;
   }
 
@@ -145,13 +118,7 @@ public final class Thesaurus {
    * @return node
    */
   private ThesNode node(final byte[] term) {
-    ThesNode node = nodes.get(term);
-    if(node == null) {
-      node = new ThesNode();
-      node.term = term;
-      nodes.put(term, node);
-    }
-    return node;
+    return nodes.computeIfAbsent(term, () -> new ThesNode(term));
   }
 
   /**
@@ -189,7 +156,9 @@ public final class Thesaurus {
    */
   void find(final InputInfo ii, final TokenList list, final byte[] token) throws QueryException {
     if(nodes.isEmpty()) init(ii);
-    find(list, nodes.get(token), 1);
+
+    final ThesNode tn = nodes.get(token);
+    if(tn != null) find(list, tn, 1);
   }
 
   /**
@@ -199,14 +168,13 @@ public final class Thesaurus {
    * @param level current level
    */
   private void find(final TokenList list, final ThesNode node, final long level) {
-    if(level > max || node == null) return;
-
     for(int n = 0; n < node.size; ++n) {
       if(rel.length == 0 || eq(node.rs[n], rel)) {
-        final byte[] term = node.nodes[n].term;
+        final ThesNode tn = node.nodes[n];
+        final byte[] term = tn.term;
         if(!list.contains(term)) {
           list.add(term);
-          find(list, node.nodes[n], level + 1);
+          if(level < max) find(list, tn, level + 1);
         }
       }
     }
@@ -218,5 +186,40 @@ public final class Thesaurus {
     if(!(obj instanceof Thesaurus)) return false;
     final Thesaurus th = (Thesaurus) obj;
     return file.eq(th.file) && min == th.min && max == th.max && eq(rel, th.rel);
+  }
+
+  /** Thesaurus node. */
+  private static final class ThesNode {
+    /** Related nodes. */
+    private ThesNode[] nodes = new ThesNode[1];
+    /** Relationships. */
+    private byte[][] rs = new byte[1][];
+    /** Term. */
+    private final byte[] term;
+    /** Entries. */
+    private int size;
+
+    /**
+     * Constructor.
+     * @param term term
+     */
+    private ThesNode(final byte[] term) {
+      this.term = term;
+    }
+
+    /**
+     * Adds a relationship to the node.
+     * @param n target node
+     * @param r relationship
+     */
+    private void add(final ThesNode n, final byte[] r) {
+      if(size == nodes.length) {
+        final int s = Array.newCapacity(size);
+        nodes = Array.copy(nodes, new ThesNode[s]);
+        rs = Array.copyOf(rs, s);
+      }
+      nodes[size] = n;
+      rs[size++] = r;
+    }
   }
 }

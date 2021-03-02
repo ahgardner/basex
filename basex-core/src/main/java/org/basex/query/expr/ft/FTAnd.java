@@ -16,7 +16,7 @@ import org.basex.util.hash.*;
 /**
  * FTAnd expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  * @author Sebastian Gath
  */
@@ -120,7 +120,7 @@ public final class FTAnd extends FTExpr {
 
   @Override
   public FTExpr copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new FTAnd(info, Arr.copyAll(cc, vm, exprs));
+    return copyType(new FTAnd(info, Arr.copyAll(cc, vm, exprs)));
   }
 
   @Override
@@ -129,7 +129,7 @@ public final class FTAnd extends FTExpr {
   }
 
   @Override
-  public String toString() {
-    return PAREN1 + toString(' ' + FTAND + ' ') + PAREN2;
+  public void plan(final QueryString qs) {
+    qs.tokens(exprs, ' ' + FTAND + ' ', true);
   }
 }

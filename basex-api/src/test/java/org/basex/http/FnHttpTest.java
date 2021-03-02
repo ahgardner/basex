@@ -37,7 +37,7 @@ import org.junit.jupiter.api.Test;
 /**
  * This class tests the server-based HTTP Client.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Rositsa Shadura
  */
 public class FnHttpTest extends HTTPTest {
@@ -95,7 +95,7 @@ public class FnHttpTest extends HTTPTest {
     try(QueryProcessor qp = new QueryProcessor(_HTTP_SEND_REQUEST.args(
         " <http:request method='post'>"
         + "<http:body media-type='application/xml'>"
-        + "<query xmlns='" + Prop.URL + "/rest'>"
+        + "<query xmlns='" + QueryText.BASEX_URL + "/rest'>"
         + "<text><![CDATA[<x>1</x>]]></text>"
         + "</query>"
         + "</http:body>"
@@ -109,7 +109,7 @@ public class FnHttpTest extends HTTPTest {
         + "<http:body media-type='application/xml'/>"
         + "</http:request>",
         RESTURL,
-        " <query xmlns='" + Prop.URL + "/rest'>"
+        " <query xmlns='" + QueryText.BASEX_URL + "/rest'>"
         + "<text><![CDATA[<x>1</x>]]></text>"
         + "</query>"), ctx)) {
       checkResponse(qp.value(), 2, HttpURLConnection.HTTP_OK);
@@ -127,7 +127,7 @@ public class FnHttpTest extends HTTPTest {
       final Value value = qp.value();
       checkResponse(value, 2, HttpURLConnection.HTTP_OK);
 
-      assertEquals(NodeType.DOC, value.itemAt(1).type);
+      assertEquals(NodeType.DOCUMENT_NODE, value.itemAt(1).type);
     }
 
     // GET2 - with override-media-type='text/plain'
@@ -136,7 +136,7 @@ public class FnHttpTest extends HTTPTest {
       final Value value = qp.value();
       checkResponse(value, 2, HttpURLConnection.HTTP_OK);
 
-      assertEquals(AtomType.STR, value.itemAt(1).type);
+      assertEquals(AtomType.STRING, value.itemAt(1).type);
     }
 
     // Get3 - with status-only='true'
@@ -802,8 +802,8 @@ public class FnHttpTest extends HTTPTest {
     for(int e = 0; e < es; e++) {
       Item exp = expected.itemAt(e), ret = returned.itemAt(e);
       // reorder response headers
-      if(exp.type == NodeType.ELM) exp = reorderHeaders(exp);
-      if(ret.type == NodeType.ELM) ret = reorderHeaders(ret);
+      if(exp.type == NodeType.ELEMENT) exp = reorderHeaders(exp);
+      if(ret.type == NodeType.ELEMENT) ret = reorderHeaders(ret);
       // compare items
       if(!new DeepEqual().equal(exp, ret)) {
         fail(Strings.concat("Result ", e, " differs:\nReturned: ",
@@ -879,7 +879,7 @@ public class FnHttpTest extends HTTPTest {
 
 /**
  * Fake HTTP connection.
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Rositsa Shadura
  */
 final class FakeHttpConnection extends HttpURLConnection {

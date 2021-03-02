@@ -18,7 +18,7 @@ import org.basex.util.*;
 /**
  * An array storing {@link Value}s.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public abstract class XQArray extends XQData {
@@ -37,7 +37,7 @@ public abstract class XQArray extends XQData {
    * Default constructor.
    */
   XQArray() {
-    super(SeqType.ANY_ARRAY);
+    super(SeqType.ARRAY);
   }
 
   /**
@@ -98,10 +98,10 @@ public abstract class XQArray extends XQData {
    * Returns a copy of this array where the entry at the given position is
    * replaced by the given value.
    * @param pos position of the entry to replace
-   * @param val value to put into this array
+   * @param value value to put into this array
    * @return resulting array
    */
-  public abstract XQArray put(long pos, Value val);
+  public abstract XQArray put(long pos, Value value);
 
   /**
    * Returns the number of elements in this array.
@@ -217,11 +217,11 @@ public abstract class XQArray extends XQData {
   }
 
   /**
-   * Prepends the given elements to this array.
-   * @param values values, with length at most {@link XQArray#MAX_SMALL}
+   * Prepends the given sequence to this array.
+   * @param array small array
    * @return resulting array
    */
-  abstract XQArray consSmall(Value[] values);
+  abstract XQArray prepend(SmallArray array);
 
   /**
    * Returns an array containing the values at the indices {@code from} to {@code to - 1} in
@@ -264,8 +264,8 @@ public abstract class XQArray extends XQData {
 
   @Override
   public final Value get(final Item key, final InputInfo ii) throws QueryException {
-    if(!key.type.instanceOf(AtomType.ITR) && !key.type.isUntyped())
-      throw typeError(key, AtomType.ITR, ii);
+    if(!key.type.instanceOf(AtomType.INTEGER) && !key.type.isUntyped())
+      throw typeError(key, AtomType.INTEGER, ii);
 
     final long pos = key.itr(ii), size = arraySize();
     if(pos > 0 && pos <= size) return get(pos - 1);
@@ -282,7 +282,7 @@ public abstract class XQArray extends XQData {
     if(arraySize() == 1) return get(0).atomValue(qc, ii);
     final ValueBuilder vb = new ValueBuilder(qc);
     for(final Value value : members()) vb.add(value.atomValue(qc, ii));
-    return vb.value(AtomType.AAT);
+    return vb.value(AtomType.ANY_ATOMIC_TYPE);
   }
 
   @Override
@@ -344,7 +344,7 @@ public abstract class XQArray extends XQData {
     if(!(tp instanceof FuncType) || tp instanceof MapType) return false;
 
     final FuncType ft = (FuncType) tp;
-    if(ft.argTypes.length != 1 || !ft.argTypes[0].instanceOf(SeqType.ITR_O)) return false;
+    if(ft.argTypes.length != 1 || !ft.argTypes[0].instanceOf(SeqType.INTEGER_O)) return false;
 
     final SeqType dt = ft.declType;
     if(dt.eq(SeqType.ITEM_ZM)) return true;
@@ -397,10 +397,8 @@ public abstract class XQArray extends XQData {
   }
 
   @Override
-  public final String toString() {
-    if(arraySize() == 0) return "[]";
-
-    final TokenBuilder tb = new TokenBuilder().add('[');
+  public void plan(final QueryString qs) {
+    final TokenBuilder tb = new TokenBuilder();
     final Iterator<Value> iter = iterator(0);
     for(boolean fst = true; iter.hasNext(); fst = false) {
       tb.add(fst ? " " : ", ");
@@ -413,6 +411,6 @@ public abstract class XQArray extends XQData {
       }
       if(vs != 1) tb.add(')');
     }
-    return tb.add(" ]").toString();
+    qs.bracket(tb.add(' ').finish());
   }
 }

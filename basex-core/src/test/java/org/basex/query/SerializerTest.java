@@ -9,7 +9,7 @@ import org.junit.jupiter.api.*;
 /**
  * This class tests the serializers.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class SerializerTest extends SandboxTest {
@@ -28,6 +28,17 @@ public final class SerializerTest extends SandboxTest {
       query(option + "<html xmlns='http://www.w3.org/1999/xhtml'><" + e + "/></html>",
           "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<" + e + " />\n</html>");
     }
+  }
+
+  /** method=xhtml, meta element. */
+  @Test public void gh1933() {
+    final String query1 = "let $string := serialize("
+        + "<head><meta http-equiv='Content-Type'/></head>";
+    final String query2 = ", map { 'method': 'xhtml' })"
+        + "return count(analyze-string($string, '<meta ')//fn:match)";
+
+    query(query1 + query2, 1);
+    query(query1 + "update {}" + query2, 1);
   }
 
   /** Test: method=html. */

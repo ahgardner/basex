@@ -1,12 +1,13 @@
 package org.basex.query.expr.constr;
 
 import static org.basex.query.QueryError.*;
+import static org.basex.query.QueryText.*;
 import static org.basex.util.Token.*;
+import static org.basex.util.Token.normalize;
 
 import org.basex.query.*;
 import org.basex.query.CompileContext.*;
 import org.basex.query.expr.*;
-import org.basex.query.iter.*;
 import org.basex.query.util.*;
 import org.basex.query.value.item.*;
 import org.basex.query.value.seq.*;
@@ -17,7 +18,7 @@ import org.basex.util.*;
 /**
  * Abstract fragment constructor with a QName argument.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 abstract class CName extends CNode {
@@ -29,12 +30,13 @@ abstract class CName extends CNode {
    * @param sc static context
    * @param info input info
    * @param seqType sequence type
+   * @param computed computed constructor
    * @param name name
    * @param cont contents
    */
-  CName(final StaticContext sc, final InputInfo info, final SeqType seqType, final Expr name,
-      final Expr... cont) {
-    super(sc, info, seqType, cont);
+  CName(final StaticContext sc, final InputInfo info, final SeqType seqType, final boolean computed,
+      final Expr name, final Expr... cont) {
+    super(sc, info, seqType, computed, cont);
     this.name = name;
   }
 
@@ -50,52 +52,57 @@ abstract class CName extends CNode {
     return super.compile(cc);
   }
 
-  @Override
-  public Expr optimize(final CompileContext cc) throws QueryException {
-    name = name.simplifyFor(Simplify.ATOM, cc);
-    simplifyAll(Simplify.ATOM, cc);
-    return this;
-  }
-
   /**
-   * Returns the atomized value of the constructor.
-   * @param qc query context
-   * @return resulting value
+   * Optimizes the node value.
+   * @param cc compilation context
    * @throws QueryException query exception
    */
-  final byte[] atomValue(final QueryContext qc) throws QueryException {
-    final TokenBuilder tb = new TokenBuilder();
-    for(final Expr expr : exprs) {
-      boolean more = false;
-      final Iter iter = expr.atomIter(qc, info);
-      for(Item item; (item = qc.next(iter)) != null;) {
-        if(more) tb.add(' ');
-        tb.add(item.string(info));
-        more = true;
-      }
+  final void optValue(final CompileContext cc) throws QueryException {
+    simplifyAll(Simplify.STRING, cc);
+    if(allAreValues(true) && (exprs.length != 1 || !(exprs[0] instanceof Str))) {
+      exprs = new Expr[] { Str.get(atomValue(cc.qc)) };
     }
-    return tb.finish();
+  }
+
+  @Override
+  final byte[] atomValue(final QueryContext qc) throws QueryException {
+    final byte[] value = super.atomValue(qc);
+    return value != null ? value : Token.EMPTY;
   }
 
   /**
    * Evaluates the name expression as a QName.
    * @param elem element
    * @param qc query context
-   * @return result
+   * @param sctx static context for resolving namespaces (can be {@code null})
+   * @return result, or {@code null} if namespace cannot be resolved (at compile time)
    * @throws QueryException query exception
    */
-  final QNm qname(final boolean elem, final QueryContext qc) throws QueryException {
-    final Item item = checkNoEmpty(name.atomItem(qc, info), AtomType.QNM);
-    final Type type = item.type;
-    if(type == AtomType.QNM) return (QNm) item;
-    if(!type.isStringOrUntyped() || type == AtomType.URI) throw STRQNM_X_X.get(info, type, item);
+  final QNm qname(final boolean elem, final QueryContext qc, final StaticContext sctx)
+      throws QueryException {
 
-    // create and update namespace
-    final byte[] str = item.string(info);
-    if(XMLToken.isQName(str)) {
-      return elem || Token.contains(str, ':') ? new QNm(str, sc) : new QNm(str);
+    final Item item = checkNoEmpty(name.atomItem(qc, info), AtomType.QNAME);
+    final Type type = item.type;
+    if(type == AtomType.QNAME) return (QNm) item;
+    if(!type.isStringOrUntyped() || type == AtomType.ANY_URI)
+      throw STRQNM_X_X.get(info, type, item);
+
+    // check for QName
+    final byte[] token = normalize(item.string(info));
+    if(XMLToken.isQName(token)) return !(elem || contains(token, ':')) ?
+      new QNm(token) : sctx != null ? new QNm(token, sctx) : null;
+
+    // check for EQName
+    final String string = string(token);
+    if(string.matches("^Q\\{.*\\}.+")) {
+      final byte[] local = token(string.replaceAll("^.*?\\}", ""));
+      final byte[] uri = normalize(token(string.replaceAll("^Q\\{|\\}.*", "")));
+      if(XMLToken.isNCName(local) && !eq(uri, XMLNS_URI) && !contains(uri, '{')) {
+        return new QNm(local, uri);
+      }
     }
-    throw INVNAME_X.get(info, str);
+
+    throw INVNAME_X.get(info, token);
   }
 
   /**
@@ -109,16 +116,16 @@ abstract class CName extends CNode {
     final Item item = name.atomItem(qc, info);
     if(item != Empty.VALUE) {
       final Type type = item.type;
-      if(!type.isStringOrUntyped() || type == AtomType.URI) throw STRNCN_X_X.get(info, type, item);
-      return trim(item.string(info));
+      if(type.isStringOrUntyped() && type != AtomType.ANY_URI) return trim(item.string(info));
+      throw STRNCN_X_X.get(info, type, item);
     }
-    if(empty) return Token.EMPTY;
-    throw STRNCN_X_X.get(info, SeqType.EMP, item);
+    if(empty) return EMPTY;
+    throw STRNCN_X_X.get(info, SeqType.EMPTY_SEQUENCE_Z, item);
   }
 
   @Override
-  public boolean inlineable(final Var var) {
-    return name.inlineable(var) && super.inlineable(var);
+  public boolean inlineable(final InlineContext ic) {
+    return name.inlineable(ic) && super.inlineable(ic);
   }
 
   @Override
@@ -137,15 +144,14 @@ abstract class CName extends CNode {
   }
 
   @Override
-  public Expr inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-    boolean changed = inlineAll(ei, ex, exprs, cc);
-    final Expr inlined = name.inline(ei, ex, cc);
+  public Expr inline(final InlineContext ic) throws QueryException {
+    boolean changed = ic.inline(exprs);
+    final Expr inlined = name.inline(ic);
     if(inlined != null) {
       name = inlined;
       changed = true;
     }
-    return changed ? optimize(cc) : null;
+    return changed ? optimize(ic.cc) : null;
   }
 
   @Override
@@ -166,11 +172,10 @@ abstract class CName extends CNode {
   }
 
   @Override
-  protected final String toString(final String kind) {
-    final TokenBuilder tb = new TokenBuilder().add(kind).add(' ');
-    if(name instanceof Str) tb.add(((Str) name).string());
-    else if(name instanceof QNm) tb.add(((QNm) name).id());
-    else tb.add("{ ").addExt(name).add(" }");
-    return super.toString(tb.toString());
+  public final void plan(final QueryString qs, final String kind) {
+    qs.token(kind);
+    if(name instanceof QNm) qs.token(((QNm) name).id());
+    else qs.brace(name);
+    super.plan(qs, null);
   }
 }

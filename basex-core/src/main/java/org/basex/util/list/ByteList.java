@@ -9,7 +9,7 @@ import org.basex.util.*;
 /**
  * Resizable-array implementation for native bytes.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public class ByteList extends ElementList {
@@ -26,9 +26,9 @@ public class ByteList extends ElementList {
   /**
    * Constructor with initial array capacity.
    * @param capacity array capacity
-   */
-  public ByteList(final int capacity) {
-    list = new byte[capacity];
+3   */
+  public ByteList(final long capacity) {
+    list = new byte[Array.checkCapacity(capacity)];
   }
 
   /**

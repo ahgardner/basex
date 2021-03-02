@@ -25,7 +25,7 @@ import org.basex.util.hash.*;
  * values can also be retrieved via enhanced for(for-each) loops. The default
  * {@link #iter()} method will provide better performance.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public abstract class Value extends Expr implements Iterable<Item> {
@@ -148,7 +148,7 @@ public abstract class Value extends Expr implements Iterable<Item> {
   }
 
   @Override
-  public final boolean inlineable(final Var var) {
+  public final boolean inlineable(final InlineContext ic) {
     return true;
   }
 
@@ -158,8 +158,7 @@ public abstract class Value extends Expr implements Iterable<Item> {
   }
 
   @Override
-  public final Expr inline(final ExprInfo ei, final Expr ex, final CompileContext cc) {
-    // values do not contain variable references
+  public final Expr inline(final InlineContext ic) {
     return null;
   }
 

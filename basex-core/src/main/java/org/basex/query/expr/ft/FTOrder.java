@@ -1,5 +1,6 @@
 package org.basex.query.expr.ft;
 
+import static org.basex.query.QueryText.*;
 import static org.basex.util.Token.*;
 
 import org.basex.query.*;
@@ -12,7 +13,7 @@ import org.basex.util.hash.*;
 /**
  * FTOrder expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FTOrder extends FTFilter {
@@ -39,7 +40,7 @@ public final class FTOrder extends FTFilter {
 
   @Override
   public FTExpr copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new FTOrder(info, exprs[0].copy(cc, vm));
+    return copyType(new FTOrder(info, exprs[0].copy(cc, vm)));
   }
 
   @Override
@@ -48,7 +49,7 @@ public final class FTOrder extends FTFilter {
   }
 
   @Override
-  public String toString() {
-    return super.toString() + QueryText.ORDERED;
+  public void plan(final QueryString qs) {
+    qs.token(exprs[0]).token(ORDERED);
   }
 }

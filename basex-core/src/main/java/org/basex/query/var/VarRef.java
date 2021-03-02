@@ -1,7 +1,5 @@
 package org.basex.query.var;
 
-import static org.basex.query.QueryText.*;
-
 import org.basex.data.*;
 import org.basex.query.*;
 import org.basex.query.expr.*;
@@ -14,7 +12,7 @@ import org.basex.util.hash.*;
 /**
  * Local Variable Reference expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  * @author Leo Woerteler
  */
@@ -38,9 +36,8 @@ public final class VarRef extends ParseExpr {
   }
 
   @Override
-  public ParseExpr optimize(final CompileContext cc) {
-    final SeqType st = var.seqType();
-    exprType.assign(st.type, st.occ, var.size());
+  public VarRef optimize(final CompileContext cc) {
+    exprType.assign(var.seqType(), var.size());
     return this;
   }
 
@@ -60,19 +57,19 @@ public final class VarRef extends ParseExpr {
   }
 
   @Override
-  public boolean inlineable(final Var v) {
+  public boolean inlineable(final InlineContext v) {
     return true;
   }
 
   @Override
   public VarUsage count(final Var v) {
-    return var.is(v) ? VarUsage.ONCE : VarUsage.NEVER;
+    return v != null && var.is(v) ? VarUsage.ONCE : VarUsage.NEVER;
   }
 
   @Override
-  public Expr inline(final ExprInfo ei, final Expr ex, final CompileContext cc) {
-    return !(ei instanceof Var && var.is((Var) ei)) ? null :
-      ex instanceof Value ? ex : ex.copy(cc, new IntObjMap<>());
+  public Expr inline(final InlineContext ic) throws QueryException {
+    // replace variable reference with expression
+    return ic.var != null && var.is(ic.var) ? ic.copy() : null;
   }
 
   @Override
@@ -116,12 +113,12 @@ public final class VarRef extends ParseExpr {
   }
 
   @Override
-  public String toErrorString() {
-    return Strings.concat(DOLLAR, var.name.string());
+  public void plan(final QueryString qs) {
+    qs.token(var.id());
   }
 
   @Override
-  public String toString() {
-    return Strings.concat(DOLLAR, var.name.string(), '_', var.id);
+  public String toErrorString() {
+    return var.toErrorString();
   }
 }

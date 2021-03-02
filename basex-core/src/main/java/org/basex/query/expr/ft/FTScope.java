@@ -13,7 +13,7 @@ import org.basex.util.list.*;
 /**
  * FTScope expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FTScope extends FTFilter {
@@ -61,7 +61,7 @@ public final class FTScope extends FTFilter {
 
   @Override
   public FTExpr copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new FTScope(info, exprs[0].copy(cc, vm), same, unit);
+    return copyType(new FTScope(info, exprs[0].copy(cc, vm), same, unit));
   }
 
   @Override
@@ -76,7 +76,7 @@ public final class FTScope extends FTFilter {
   }
 
   @Override
-  public String toString() {
-    return super.toString() + (same ? SAME : DIFFERENT) + ' ' + unit;
+  public void plan(final QueryString qs) {
+    qs.token(exprs[0]).token(same ? SAME : DIFFERENT).token(unit);
   }
 }

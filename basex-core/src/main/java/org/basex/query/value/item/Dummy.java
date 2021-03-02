@@ -5,30 +5,44 @@ import org.basex.query.*;
 import org.basex.query.util.collation.*;
 import org.basex.query.value.type.*;
 import org.basex.util.*;
+import org.basex.util.list.*;
 
 /**
  * Dummy item (only used at compile time).
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class Dummy extends Item {
   /** Data reference (can be {@code null}). */
   private final Data data;
+  /** Sequence type. */
+  private final SeqType seqType;
 
   /**
    * Constructor.
-   * @param type type
+   * @param seqType sequence type
    * @param data data reference (can be {@code null})
    */
-  public Dummy(final Type type, final Data data) {
-    super(type);
+  public Dummy(final SeqType seqType, final Data data) {
+    super(seqType.type);
+    this.seqType = seqType;
     this.data = data;
+  }
+
+  @Override
+  public SeqType seqType() {
+    return seqType;
   }
 
   @Override
   public Data data() {
     return data;
+  }
+
+  @Override
+  public boolean ddo() {
+    return type instanceof NodeType;
   }
 
   @Override
@@ -58,6 +72,11 @@ public final class Dummy extends Item {
   }
 
   @Override
+  public boolean comparable(final Item item) {
+    throw Util.notExpected();
+  }
+
+  @Override
   public String toJava() {
     throw Util.notExpected();
   }
@@ -73,9 +92,9 @@ public final class Dummy extends Item {
   }
 
   @Override
-  public String toString() {
-    final StringBuilder sb = new StringBuilder(Util.className(this)).append('(').append(type);
-    if(data != null) sb.append(", db: ").append(data.meta.name);
-    return sb.append(')').toString();
+  public void plan(final QueryString qs) {
+    final TokenList list = new TokenList().add(type.toString());
+    if(data != null) list.add(data.meta.name);
+    qs.token(getClass()).params(list.finish());
   }
 }

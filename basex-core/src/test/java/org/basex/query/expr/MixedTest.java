@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Mixed XQuery tests.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class MixedTest extends SandboxTest {
@@ -98,6 +98,42 @@ public final class MixedTest extends SandboxTest {
     query("declare function local:a($a) { contains($a, 'a') }; //x[local:a(.)]", "");
   }
 
+  /** Ancestor axis of DBNodes wrapped in FNodes. */
+  @Test public void gh919() {
+    query("<a><b/></a>/b ! name(..)", "a");
+
+    query("<a>{ <b/> }</a>/b ! name(..)", "a");
+    query("<a>{ <b/> update {} }</a>/b ! name(..)", "a");
+    query("(<a><b/></a> update {})/b ! name(..)", "a");
+
+    query("<a>{ <b><c/></b> }</a>/b ! name(..)", "a");
+    query("<a>{ <b><c/></b> update {} }</a>/b ! name(..)", "a");
+    query("(<a><b><c/></b></a> update {})/b ! name(..)", "a");
+
+    query("<a>{ <b><c/></b>/c }</a>/c ! name(..)", "a");
+    query("<a>{ (<b><c/></b> update {})/c }</a>/c ! name(..)", "a");
+    query("(<a><b><c/></b></a> update {})/b/c ! name(..)", "b");
+    query("(<a><b><c/></b></a> update {})/b/c/.. ! name(..)", "a");
+
+    query("<a><b/></a>  ! <x>{ . }</x>/a/b/ancestor::node() ! name()", "x\na");
+    query("(<a><b/></a> update {}) ! <x>{ . }</x>/a/b/ancestor::node() ! name()", "x\na");
+
+    query("<A>{ <a><b/><c/></a>/* }</A>/b/following-sibling::c", "<c/>");
+    query("<A>{ (<a><b/><c/></a> update {})/* }</A>/b/following-sibling::c", "<c/>");
+
+    query("<A>{ document { <a><b/><c/></a> }/a/* }</A>/b/following-sibling::c", "<c/>");
+    query("<A>{ (document { <a><b/><c/></a> } update {})/a/* }</A>/b/following-sibling::c", "<c/>");
+
+    query("<A>{ <a><b/><c/></a>/* }</A>/c/preceding-sibling::b", "<b/>");
+    query("<A>{ (<a><b/><c/></a> update {})/* }</A>/c/preceding-sibling::b", "<b/>");
+
+    query("<A>{ document { <a><b/><c/></a> }/a/* }</A>/c/preceding-sibling::b", "<b/>");
+    query("<A>{ (document { <a><b/><c/></a> } update {})/a/* }</A>/c/preceding-sibling::b", "<b/>");
+
+    error("let $doc := document { <a><b/></a> } update ()"
+        + "return id('id', element c { $doc/*/node() }/*)", IDDOC);
+  }
+
   /** Type intersections. */
   @Test public void gh1427() {
     query("let $a := function($f) as element(*) { $f() }"
@@ -164,5 +200,72 @@ public final class MixedTest extends SandboxTest {
     execute(new Close());
     query("db:open('" + NAME + "')/*/* union db:open('" + NAME + "2')/*/*",
         "<n1a/>\n<n1b/>\n<n2a/>\n<n2b/>");
+  }
+
+  /** Node construction, dynamic EQNames with URIs. */
+  @Test public void gh1912() {
+    query("element { 'a' } {}", "<a/>");
+    query("element { ' a ' } {}", "<a/>");
+    query("element { ' Q{}a ' } {}", "<a/>");
+    query("element { ' Q{ }a ' } {}", "<a/>");
+    query("element { ' Q{b}a ' } {}", "<a xmlns=\"b\"/>");
+    query("element { ' Q{ b }a ' } {}", "<a xmlns=\"b\"/>");
+    query("element { ' xml:a ' } {}", "<xml:a/>");
+    query("declare namespace p = 'u'; element { 'p:l' } {}", "<p:l xmlns:p=\"u\"/>");
+
+    query("element Q{ }x {}[namespace-uri() = (' ')]", "");
+    query("element { 'Q{ }x' } {}[namespace-uri() = (' ')]", "");
+
+    query("attribute { ' a ' } {}", "a=\"\"");
+
+    error("element { '' } {}", INVNAME_X);
+    error("element { ' ' } {}", INVNAME_X);
+    error("element { 'a b' } {}", INVNAME_X);
+    error("element { 'a:b' } {}", INVPREF_X);
+    error("element { 'a: b' } {}", INVNAME_X);
+    error("element { 'Q{}' } {}", INVNAME_X);
+    error("element { 'Q{ }' } {}", INVNAME_X);
+
+    error("element { 'Q{ http://www.w3.org/2000/xmlns/ }a' } {}", INVNAME_X);
+  }
+
+  /** Faster instance of checks. */
+  @Test public void gh1939() {
+    query("128 instance of xs:integer", true);
+
+    query("<a/>[.  = ''] instance of element(a) ", true);
+    query("<a/>[.  = ''] instance of element(a)?", true);
+    query("<a/>[.  = ''] instance of element(a)+", true);
+    query("<a/>[.  = ''] instance of element(a)*", true);
+    query("<a/>[. != ''] instance of element(a) ", false);
+    query("<a/>[. != ''] instance of element(a)?", true);
+    query("<a/>[. != ''] instance of element(a)+", false);
+    query("<a/>[. != ''] instance of element(a)*", true);
+
+    query("('' , <a/>)[.  = ''] instance of empty-sequence()", false);
+    query("('a', <a/>)[.  = ''] instance of empty-sequence()", false);
+    query("('' , <a/>)[. != ''] instance of empty-sequence()", true);
+    query("('a', <a/>)[. != ''] instance of empty-sequence()", false);
+
+    error("error() instance of xs:string*", FUNERR1);
+
+    query("(xs:anyURI('b'), 'a', 'a')[. = 'a'] instance of xs:string ", false);
+    query("(xs:anyURI('b'), 'a', 'a')[. = 'a'] instance of xs:string?", false);
+    query("(xs:anyURI('b'), 'a', 'a')[. = 'a'] instance of xs:string+", true);
+    query("(xs:anyURI('b'), 'a', 'a')[. = 'a'] instance of xs:string*", true);
+    query("(xs:anyURI('b'), 'a', 'a')[. = 'b'] instance of xs:string ", false);
+    query("(xs:anyURI('b'), 'a', 'a')[. = 'b'] instance of xs:string?", false);
+    query("(xs:anyURI('b'), 'a', 'a')[. = 'b'] instance of xs:string+", false);
+    query("(xs:anyURI('b'), 'a', 'a')[. = 'b'] instance of xs:string*", false);
+    query("(xs:anyURI('b'), 'a', 'a')[. = 'c'] instance of xs:string ", false);
+    query("(xs:anyURI('b'), 'a', 'a')[. = 'c'] instance of xs:string?", true);
+    query("(xs:anyURI('b'), 'a', 'a')[. = 'c'] instance of xs:string+", false);
+    query("(xs:anyURI('b'), 'a', 'a')[. = 'c'] instance of xs:string*", true);
+  }
+
+  /** JSON documents, node ids. */
+  public void gh1983() {
+    query("tail(json:parse('{}')/*/ancestor-or-self::node()) instance of element()", true);
+    query("tail(csv:parse('')/*/ancestor-or-self::node()) instance of element()", true);
   }
 }

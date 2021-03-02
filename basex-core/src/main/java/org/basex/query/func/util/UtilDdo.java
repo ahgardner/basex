@@ -13,7 +13,7 @@ import org.basex.query.value.type.*;
 /**
  * Function implementation.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class UtilDdo extends StandardFunc {
@@ -29,14 +29,28 @@ public final class UtilDdo extends StandardFunc {
   }
 
   @Override
-  protected Expr opt(final CompileContext cc) {
-    final Expr expr = exprs[0];
-    final SeqType st = expr.seqType();
-    final Type type = st.type;
-    if(type instanceof NodeType) {
-      if(expr.ddo() || st.zeroOrOne()) return expr;
-      exprType.assign(type);
+  protected Expr opt(final CompileContext cc) throws QueryException {
+    Expr expr = exprs[0];
+    final Type type = expr.seqType().type;
+
+    // util:ddo(util:replicate(*, 2))  ->  util:ddo(*)
+    if(expr instanceof UtilReplicate && ((UtilReplicate) expr).once() &&
+        type instanceof NodeType) return expr.arg(0);
+
+    // replace list with union:
+    // util:ddo((<a/>, <b/>))  ->  <a/> | <b/>
+    // util:ddo(($a, $a))  ->  $a
+    if(expr instanceof List) {
+      expr = ((List) expr).toUnion(cc);
+      if(expr != exprs[0]) return expr;
     }
+
+    // util:ddo(/a/b/c)  ->  /a/b/c
+    if(expr.ddo()) return expr;
+
+    // adopt type of argument
+    if(type instanceof NodeType) exprType.assign(type);
+
     return this;
   }
 }

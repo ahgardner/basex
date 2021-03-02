@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Tests adding files/folders/zip files/urls to collections.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Michael Seiferle
  */
 public final class AddDeleteTest extends SandboxTest {
@@ -171,8 +171,7 @@ public final class AddDeleteTest extends SandboxTest {
   /**
    * Adds a non-existent file.
    */
-  @Test
-  public void addFileFail() {
+  @Test public void addFileFail() {
     assertThrows(BaseXException.class,
       () -> new Add("", FILE + "/doesnotexist").execute(context));
   }
@@ -195,16 +194,14 @@ public final class AddDeleteTest extends SandboxTest {
   /**
    * Creates a database from a broken input.
    */
-  @Test
-  public void createCorrupt() {
+  @Test public void createCorrupt() {
     assertThrows(BaseXException.class, () -> new CreateDB(NAME, "<x").execute(context));
   }
 
   /**
    * Creates a database from a broken input file.
    */
-  @Test
-  public void createCorruptFromFile() {
+  @Test public void createCorruptFromFile() {
     final IOFile io = new IOFile(TEMP);
     write(io, "<x");
     assertThrows(BaseXException.class, () -> new CreateDB(NAME, io.path()).execute(context));

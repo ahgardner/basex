@@ -7,15 +7,15 @@ import static org.junit.jupiter.api.Assertions.*;
 import org.basex.query.ast.*;
 import org.basex.query.expr.*;
 import org.basex.query.expr.constr.*;
-import org.basex.query.expr.gflwor.*;
+import org.basex.query.expr.path.*;
 import org.basex.query.value.item.*;
 import org.basex.query.value.seq.*;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.Test;
 
 /**
  * XQuery functions: AST tests.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class FnModuleTest extends QueryPlanTest {
@@ -31,7 +31,7 @@ public final class FnModuleTest extends QueryPlanTest {
     check("for $i in (1, 2.0) return " + func.args(" $i"), "1\n2", type(func, "xs:decimal"));
     check(func.args(" <a>1</a>"), 1, type(func, "xs:double"));
 
-    check("for $i in ([], []) return " + func.args(" $i"), "", type(func, "xs:numeric?"));
+    check("for $i in ([], [1]) return " + func.args(" $i"), 1, type(func, "xs:numeric?"));
     check("for $i in (1, <a>2</a>) return " + func.args(" $i"), "1\n2", type(func, "xs:numeric?"));
 
     // pre-evaluate empty sequence
@@ -168,6 +168,8 @@ public final class FnModuleTest extends QueryPlanTest {
     final Function func = DEEP_EQUAL;
 
     query("let $a := reverse((<a/>, <b/>)) return " + func.args(" $a/.", " $a/."), true);
+    query("deep-equal(1 to 1000000000, 1 to 1000000000)", true);
+    query("deep-equal(1 to 1000000000, 1 to 1000000001)", false);
   }
 
   /** Test method. */
@@ -176,6 +178,26 @@ public final class FnModuleTest extends QueryPlanTest {
 
     query(func.args(" (1 to 100000000) ! 'a'"), "a");
     query("count(" + func.args(" 1 to 100000000") + ')', 100000000);
+    check(func.args(" prof:void(1)"), "", root(_PROF_VOID));
+    check("(1, 3) ! " + func.args(" ."), "1\n3", root(IntSeq.class));
+
+    // remove duplicate expressions
+    check(func.args(" (1, <_/>, 1)"), "1\n", count(Int.class, 1));
+    check(func.args(" (1, 1)[. = 1]"), 1, root(Int.class));
+    check(func.args(" (<_>1</_>, <_>1</_>)[. = 1]"), 1, empty(List.class), empty(_UTIL_REPLICATE));
+    // remove reverse function call
+    check(func.args(" reverse((<a>A</a>, <b>A</b>))"), "A", empty(REVERSE));
+    check(func.args(" reverse((<a>A</a>, <b>A</b>)[data()])"), "A", empty(REVERSE));
+    check(func.args(" reverse((<a>A</a>, <b>A</b>))[data()]"), "A", empty(REVERSE));
+    // remove sort function call
+    check(func.args(" sort((<a>A</a>, <b>A</b>))"), "A", empty(SORT));
+    check(func.args(" sort((<a>A</a>, <b>A</b>)[data()])"), "A", empty(SORT));
+    check(func.args(" sort((<a>A</a>, <b>A</b>))[data()]"), "A", empty(SORT));
+
+    // single value: replace with data
+    check(func.args(" <_>A</_>"), "A", root(DATA));
+    check("(<a/>, <b/>) ! " + func.args(" ."), "\n", root(DATA));
+    check("(1 to 2) ! " + func.args(" ."), "1\n2", root(RangeSeq.class));
   }
 
   /** Test method. */
@@ -237,17 +259,17 @@ public final class FnModuleTest extends QueryPlanTest {
     check(func.args(" ()", " ()", " function($a, $b) { $b }"), "", empty());
 
     // should be unrolled and evaluated at compile time
-    check(func.args(" 2 to 10", 1, " function($a, $b) { $a + $b }"),
-        55,
+    final int limit = StandardFunc.UNROLL_LIMIT;
+    check(func.args(" 2 to " + limit, 1, " function($a, $b) { $a + $b }"), 15,
         empty(func),
         exists(Int.class));
     // should be unrolled but not evaluated at compile time
-    check(func.args(" 2 to 10", 1, " function($a, $b) { $b[random:double()] }"),
-        "",
+    check(func.args(" 2 to " + limit, 1, " function($a, $b) { $b[random:double()] }"), "",
         empty(func),
         exists(_RANDOM_DOUBLE));
     // should not be unrolled
-    check(func.args(" 1 to 11", 0, " function($a, $b) { $a + $b }"), 66, exists(func));
+    check(func.args(" 1 to " + (limit + 1), 0, " function($a, $b) { $a + $b }"), 21,
+        exists(func));
 
     // type inference
     check(func.args(" (1, 2)[. = 1]", " ()", " function($r, $a) { $r, $a }"), 1,
@@ -277,17 +299,17 @@ public final class FnModuleTest extends QueryPlanTest {
     check(func.args(" ()", " ()", " function($a, $b) { $a }"), "", empty());
 
     // should be unrolled and evaluated at compile time
-    check(func.args(" 1 to 9", 10, " function($a, $b) { $a + $b }"),
-        55,
+    final int limit = StandardFunc.UNROLL_LIMIT;
+    check(func.args(" 1 to " + (limit - 1), 10, " function($a, $b) { $a + $b }"), 20,
         empty(func),
         exists(Int.class));
     // should be unrolled but not evaluated at compile time
-    check(func.args(" 1 to 9", 10, " function($a, $b) { $b[random:double()] }"),
-        "",
+    check(func.args(" 1 to " + (limit - 1), 10, " function($a, $b) { $b[random:double()] }"), "",
         empty(func),
         exists(_RANDOM_DOUBLE));
     // should not be unrolled
-    check(func.args(" 0 to 10", 10, " function($a, $b) { $a + $b }"), 65, exists(func));
+    check(func.args(" 0 to " + limit, 10, " function($a, $b) { $a + $b }"), 25,
+        exists(func));
   }
 
   /** Test method. */
@@ -306,19 +328,18 @@ public final class FnModuleTest extends QueryPlanTest {
     check(func.args(" 0 to 8", " function($x) { $x + 1 }"),
         "1\n2\n3\n4\n5\n6\n7\n8\n9",
         empty(func),
-        exists(IntSeq.class));
+        exists(RangeSeq.class));
     // should be unrolled but not evaluated at compile time
     check(func.args(" 1 to 9", " function($x) { $x[random:double()] }"), "",
         empty(func),
         exists(_RANDOM_DOUBLE));
 
-    // should be rewritten to FLWOR expression
-    check(func.args(" 0 to 10", " function($x) { $x + 1 }"),
-        "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11",
-        exists(GFLWOR.class));
-
+    // should be rewritten to maps
+    check(func.args(" 0 to 10", " function($x) { $x idiv 2 }"),
+        "0\n0\n1\n1\n2\n2\n3\n3\n4\n4\n5",
+        root(DualMap.class));
     check(func.args(" (1 to 2)[. = 2]", " function($a) { $a * $a }"), 4,
-        type(GFLWOR.class, "xs:integer*"));
+        type(DualMap.class, "xs:integer*"));
   }
 
   /** Test method. */
@@ -386,12 +407,23 @@ public final class FnModuleTest extends QueryPlanTest {
     check(func.args(" util:init((<a/>))"), "", empty());
     check(func.args(" util:init((1, 2)[. = 0])"), "", exists(_UTIL_INIT));
 
-    check(func.args(" tail((<a/>, <b/>, <c/>))"), "<b/>", exists(_UTIL_ITEM));
+    check(func.args(" tail((<a/>, <b/>, <c/>[. = '']))"), "<b/>", root(CElem.class));
+    check(func.args(" tail((<a/>, <b/>, <c/>))"), "<b/>", root(CElem.class));
 
     check(func.args(" subsequence((<a/>, <b/>), <_>1</_>)"), "<a/>", exists(SUBSEQUENCE));
-    check(func.args(" subsequence((<a/>, <b/>, <c/>, <d/>), 2, 2)"), "<b/>", exists(_UTIL_ITEM));
+    check(func.args(" subsequence((<a/>, <b/>, <c/>, <d/>), 2, 2)"), "<b/>", root(CElem.class));
+    check(func.args(" util:range((<a/>, <b/>, <c/>, <d/>), 2, 3)"), "<b/>", root(CElem.class));
 
-    check(func.args(" util:range((<a/>, <b/>, <c/>, <d/>), 2, 3)"), "<b/>", exists(_UTIL_ITEM));
+    check(func.args(" util:replicate(<a/>, 2)"), "<a/>", root(CElem.class));
+    check(func.args(" util:replicate(<a/>[. = ''], 2)"), "<a/>",
+        root(IterFilter.class), empty(_UTIL_REPLICATE));
+    check(func.args(" util:replicate((<a/>, <b/>)[. = ''], 2)"), "<a/>",
+        root(HEAD), empty(_UTIL_REPLICATE));
+    check(func.args(" util:replicate(<a/>, <_>2</_>)"), "<a/>", exists(_UTIL_REPLICATE));
+
+    check(func.args(" (1, <a/>)"), 1, root(Int.class));
+    check(func.args(" (1 to 2, <a/>)"), 1, root(Int.class));
+    check(func.args(" (<a/>[. = ''], 1)"), "<a/>", root(_UTIL_OR));
   }
 
   /** Test method. */
@@ -497,10 +529,8 @@ public final class FnModuleTest extends QueryPlanTest {
     check(func.args(1), false, empty(func));
     check(func.args(" ()"), true,  empty(func));
 
-    // function is replaced with fn:exists
-    check(func.args(" empty((1, 2)[. = 1])"), true, exists(EXISTS));
-    // function is replaced with fn:empty
-    check(func.args(" exists((1, 2)[. = 1])"), false, exists(EMPTY));
+    check(func.args(" empty((1, 2)[. = 1])"), true, root(Bln.class));
+    check(func.args(" exists((1, 2)[. = 1])"), false, root(Bln.class));
     check(func.args(" <a/>/self::a"), false, exists(EMPTY));
     // function is replaced with fn:boolean
     check(func.args(func.args(" ((1, 2)[. = 1])")), true, exists(BOOLEAN));
@@ -680,14 +710,21 @@ public final class FnModuleTest extends QueryPlanTest {
 
   /** Test method. */
   @Test public void replace() {
-    // tests for issue GH-573:
     final Function func = REPLACE;
+
+    query(func.args("a", "", "x", "j"), "xax");
+    error(func.args("a", "", "x"), REGROUP);
+
+    // GH-573
     query(func.args("aaaaa bbbbbbbb ddd ", "(.{6,15}) ", "$1@"), "aaaaa bbbbbbbb@ddd ");
     query(func.args("aaaa AAA 123", "(\\s+\\P{Ll}{3,280}?)", "$1@"), "aaaa AAA@ 123@");
     error(func.args("asdf", "a{12, 3}", ""), REGPAT_X);
 
-    query(func.args("a", "", "x", "j"), "xax");
-    error(func.args("a", "", "x"), REGROUP);
+    // GH-1940
+    query("replace('hello', 'hel(?:lo)', '$1')", "");
+    query("replace('abc', 'b', '$0')", "abc");
+    query("replace('abc', 'b', '$1')", "ac");
+    query("replace('abc', 'b', '$10')", "a0c");
   }
 
   /** Test method. */
@@ -711,13 +748,20 @@ public final class FnModuleTest extends QueryPlanTest {
     query(func.args(" (1 to 2) ! 1"), "1\n1");
     query(func.args(" (1 to 2) ! (1, 2)"), "2\n1\n2\n1");
 
-    check(func.args(" tail((<a/>, <b/>, <c/>))"), "<c/>\n<b/>", empty(_UTIL_INIT));
-    check(func.args(" (<a/>, <b/>, <c/>)[position() < last()]"), "<b/>\n<a/>", empty(TAIL));
-
-    check(func.args(" tail(" + func.args(" (<a/>, <b/>, <c/>)") + ")"), "<a/>\n<b/>",
-        exists(_UTIL_INIT));
-    check(func.args(" (" + func.args(" (<a/>, <b/>, <c/>)") + ")[position() < last()]"),
-        "<b/>\n<c/>", exists(TAIL));
+    check(func.args(" tail((<a/>, <b/>, <c/>))"),
+        "<c/>\n<b/>", empty(_UTIL_INIT));
+    check(func.args(" (<a/>, <b/>, <c/>)[position() < last()]"),
+        "<b/>\n<a/>", empty(TAIL));
+    check(func.args(" tail(" + func.args(" (1 to 2)[. > 0]") + ")"),
+        1, exists(_UTIL_INIT));
+    check(func.args(" (" + func.args(" (1 to 2)[. > 0]") + ")[position() < last()]"),
+        2, exists(TAIL));
+    check(func.args(" util:replicate(<a/>, 2)"),
+        "<a/>\n<a/>", empty(REVERSE));
+    check(func.args(" util:replicate((<a/>, <b/>), 2)"),
+        null, exists(REVERSE));
+    check(func.args(" (1, <a/>[. = ''])"),
+        "<a/>\n1", root(List.class));
   }
 
   /** Test method. */
@@ -791,7 +835,8 @@ public final class FnModuleTest extends QueryPlanTest {
     check("for $s in (<a/>, <b/>) return " + func.args(" $s"), "\n", exists(func));
     check("for $s in ('a', 'b') return $s[" + func.args() + ']', "a\nb", empty(func));
     check("for $s in ('a', 'b') return $s[" + func.args() + " = 'a']", "a", empty(func));
-    check("for $s in (<a/>, <b/>) return $s[" + func.args() + ']', "", exists(func));
+    check("for $s in (<a/>, <b/>) return $s[" + func.args() + ']', "",
+        empty(func), exists(SingleIterPath.class));
 
     error(func.args(), NOCTX_X);
     error(func.args(" true#0"), FISTRING_X);
@@ -916,6 +961,10 @@ public final class FnModuleTest extends QueryPlanTest {
     query(func.args(" (<_/>, <_/>, <_/>)", 4, 0), "");
     query(func.args(" (<_/>, <_/>, <_/>)", 4, 1), "");
 
+    check(func.args(" (<a/>, <b/>, <c/>, <d/>)", 2, 2), "<b/>\n<c/>", root(List.class));
+    check(func.args(" util:replicate(<a/>, 5)", 2, 2), "<a/>\n<a/>", root(_UTIL_REPLICATE));
+    check(func.args(" util:replicate(<a/>, 5)", 2, 3), "<a/>\n<a/>\n<a/>", root(_UTIL_REPLICATE));
+
     query("sort(" + func.args(" tokenize(<_/>)", 3) + ')', "");
   }
 
@@ -1019,6 +1068,14 @@ public final class FnModuleTest extends QueryPlanTest {
     query(func.args(" subsequence(tokenize(<_/>), <_>1</_>)"), "");
     query(func.args(" util:range(tokenize(<_>W X Y Z</_>), 3, 4)"), "Z");
     query(func.args(" util:range(tokenize(<_/>), <_>1</_>, 1)"), "");
+
+    check(func.args(" util:replicate(<a/>, 2)"), "<a/>", root(CElem.class));
+    check(func.args(" util:replicate(<a/>, 3)"), "<a/>\n<a/>", root(_UTIL_REPLICATE));
+    check(func.args(" util:replicate(<a/>[. = ''], 2)"), "<a/>", root(IterFilter.class));
+
+    check(func.args(" (<a/>, <b/>)"), "<b/>", root(CElem.class), empty(TAIL));
+    check(func.args(" (<a/>, <b/>, <c/>)"), "<b/>\n<c/>", root(List.class), empty(TAIL));
+    check(func.args(" (1 to 2, <a/>)"), "2\n<a/>", root(List.class), empty(TAIL));
   }
 
   /** Test method. */

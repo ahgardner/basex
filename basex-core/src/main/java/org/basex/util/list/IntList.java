@@ -7,7 +7,7 @@ import org.basex.util.*;
 /**
  * Resizable-array implementation for native int values.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public class IntList extends ElementList {
@@ -25,18 +25,18 @@ public class IntList extends ElementList {
    * Constructor with initial capacity.
    * @param capacity array capacity
    */
-  public IntList(final int capacity) {
-    list = new int[capacity];
+  public IntList(final long capacity) {
+    list = new int[Array.checkCapacity(capacity)];
   }
 
   /**
    * Constructor, specifying a resize factor. Smaller values are more memory-saving,
    * while larger values will provide better performance.
-   * @param resize resize factor
+   * @param factor resize factor
    */
-  public IntList(final double resize) {
+  public IntList(final double factor) {
     this();
-    factor = resize;
+    this.factor = factor;
   }
 
   /**

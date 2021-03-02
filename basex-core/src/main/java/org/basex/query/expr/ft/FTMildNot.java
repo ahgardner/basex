@@ -14,7 +14,7 @@ import org.basex.util.hash.*;
 /**
  * FTMildnot expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FTMildNot extends FTExpr {
@@ -99,7 +99,7 @@ public final class FTMildNot extends FTExpr {
 
   @Override
   public FTExpr copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new FTMildNot(info, exprs[0].copy(cc, vm), exprs[1].copy(cc, vm));
+    return copyType(new FTMildNot(info, exprs[0].copy(cc, vm), exprs[1].copy(cc, vm)));
   }
 
   @Override
@@ -108,7 +108,7 @@ public final class FTMildNot extends FTExpr {
   }
 
   @Override
-  public String toString() {
-    return toString(' ' + NOT + ' ' + IN + ' ');
+  public void plan(final QueryString qs) {
+    qs.tokens(exprs, ' ' + NOT + ' ' + IN + ' ', true);
   }
 }

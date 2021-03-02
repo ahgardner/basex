@@ -4,10 +4,14 @@ import static org.basex.query.QueryError.*;
 import static org.basex.query.QueryText.*;
 import static org.basex.util.Token.*;
 
+import java.util.*;
+
 import org.basex.query.*;
 import org.basex.query.CompileContext.*;
 import org.basex.query.expr.*;
+import org.basex.query.expr.path.*;
 import org.basex.query.util.*;
+import org.basex.query.value.*;
 import org.basex.query.value.item.*;
 import org.basex.query.value.node.*;
 import org.basex.query.value.type.*;
@@ -18,28 +22,26 @@ import org.basex.util.hash.*;
 /**
  * Element constructor.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class CElem extends CName {
   /** Namespaces. */
   private final Atts nspaces;
-  /** Computed constructor flag. */
-  private final boolean comp;
 
   /**
    * Constructor.
    * @param sc static context
    * @param info input info
+   * @param computed computed constructor
    * @param name name
    * @param nspaces namespaces or {@code null} if this is a computed constructor
    * @param cont element contents
    */
-  public CElem(final StaticContext sc, final InputInfo info, final Expr name, final Atts nspaces,
-      final Expr... cont) {
-    super(sc, info, SeqType.ELM_O, name, cont);
-    this.nspaces = nspaces == null ? new Atts() : nspaces;
-    comp = nspaces == null;
+  public CElem(final StaticContext sc, final InputInfo info, final boolean computed,
+      final Expr name, final Atts nspaces, final Expr... cont) {
+    super(sc, info, SeqType.ELEMENT_O, computed, name, cont);
+    this.nspaces = nspaces;
   }
 
   @Override
@@ -54,7 +56,15 @@ public final class CElem extends CName {
 
   @Override
   public Expr optimize(final CompileContext cc) throws QueryException {
-    name = name.simplifyFor(Simplify.ATOM, cc);
+    name = name.simplifyFor(Simplify.STRING, cc);
+    if(name instanceof Value) {
+      final QNm nm = qname(true, cc.qc, null);
+      if(nm != null) {
+        name = nm;
+        exprType.assign(SeqType.get(NodeType.ELEMENT, Occ.EXACTLY_ONE,
+            Test.get(NodeType.ELEMENT, nm)));
+      }
+    }
     return this;
   }
 
@@ -68,7 +78,7 @@ public final class CElem extends CName {
       for(int i = 0; i < nl; i++) inscopeNS.add(nspaces.name(i), nspaces.value(i));
 
       // create and check QName
-      final QNm nm = qname(true, qc);
+      final QNm nm = qname(true, qc, sc);
       final byte[] cp = nm.prefix(), cu = nm.uri();
       if(eq(cp, XML) ^ eq(cu, XML_URI)) throw CEXML.get(info, cu, cp);
       if(eq(cu, XMLNS_URI)) throw CEINV_X.get(info, cu);
@@ -95,7 +105,7 @@ public final class CElem extends CName {
         // check if element has a namespace
         if(nm.hasURI()) {
           // add to statically known namespaces
-          if(!comp && (uri == null || !eq(uri, cu))) sc.ns.add(cp, cu);
+          if(!computed && (uri == null || !eq(uri, cu))) sc.ns.add(cp, cu);
           // add to in-scope namespaces
           if(!inscopeNS.contains(cp)) inscopeNS.add(cp, cu);
         } else {
@@ -141,8 +151,8 @@ public final class CElem extends CName {
 
   @Override
   public Expr copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new CElem(sc, info, name.copy(cc, vm), comp ? null : nspaces.copy(),
-        copyAll(cc, vm, exprs));
+    return copyType(new CElem(sc, info, computed, name.copy(cc, vm), nspaces.copy(),
+        copyAll(cc, vm, exprs)));
   }
 
   /**
@@ -170,7 +180,7 @@ public final class CElem extends CName {
       if(apref == null) {
         int i = 1;
         do {
-          apref = concat(pref, '_', i++);
+          apref = concat(pref, "_", i++);
         } while(ns.contains(apref));
         ns.add(apref, uri);
       }
@@ -192,14 +202,45 @@ public final class CElem extends CName {
 
   @Override
   public boolean equals(final Object obj) {
-    if(this == obj) return true;
-    if(!(obj instanceof CElem)) return false;
-    final CElem c = (CElem) obj;
-    return comp == c.comp && nspaces.equals(c.nspaces) && super.equals(obj);
+    return this == obj || obj instanceof CElem &&
+        nspaces.equals(((CElem) obj).nspaces) && super.equals(obj);
   }
 
   @Override
-  public String toString() {
-    return toString(ELEMENT);
+  public void plan(final QueryString qs) {
+    if(computed) {
+      plan(qs, ELEMENT);
+    } else {
+      final byte[] nm = ((QNm) name).string();
+      qs.token('<').token(nm);
+      final int el = exprs.length;
+      for(int e = 0; e < el; e++) {
+        final Expr expr = exprs[e];
+        if(expr instanceof CAttr && !((CAttr) expr).computed) {
+          qs.token(expr);
+        } else {
+          qs.token('>');
+          boolean constr = false;
+          for(int f = e; f < el && !constr; f++) {
+            constr = exprs[f] instanceof CNode ? ((CNode) exprs[f]).computed :
+              !(exprs[f] instanceof Str);
+          }
+          if(constr) {
+            qs.token('{').tokens(Arrays.copyOfRange(exprs, e, el), SEP).token("}");
+          } else {
+            for(int f = e; f < el; f++) {
+              if(exprs[f] instanceof Str) {
+                qs.value(((Str) exprs[f]).string());
+              } else {
+                qs.token(exprs[f]);
+              }
+            }
+          }
+          qs.token('<').token('/').token(nm).token('>');
+          return;
+        }
+      }
+      qs.token('/').token('>');
+    }
   }
 }

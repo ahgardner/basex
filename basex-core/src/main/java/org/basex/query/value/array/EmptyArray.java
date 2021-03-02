@@ -10,7 +10,7 @@ import org.basex.util.*;
 /**
  * The empty array.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 final class EmptyArray extends XQArray {
@@ -41,7 +41,7 @@ final class EmptyArray extends XQArray {
   }
 
   @Override
-  public XQArray put(final long pos, final Value val) {
+  public XQArray put(final long pos, final Value value) {
     throw Util.notExpected();
   }
 
@@ -111,7 +111,7 @@ final class EmptyArray extends XQArray {
   }
 
   @Override
-  XQArray consSmall(final Value[] values) {
-    return new SmallArray(values);
+  XQArray prepend(final SmallArray array) {
+    return array;
   }
 }

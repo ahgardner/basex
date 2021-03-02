@@ -14,7 +14,7 @@ import org.basex.util.hash.*;
 /**
  * Document fragment.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class CDoc extends CNode {
@@ -22,10 +22,12 @@ public final class CDoc extends CNode {
    * Constructor.
    * @param sc static context
    * @param info input info
+   * @param computed computed constructor
    * @param expr expression
    */
-  public CDoc(final StaticContext sc, final InputInfo info, final Expr expr) {
-    super(sc, info, SeqType.DOC_O, expr);
+  public CDoc(final StaticContext sc, final InputInfo info, final boolean computed,
+      final Expr expr) {
+    super(sc, info, SeqType.DOCUMENT_NODE_O, computed, expr);
   }
 
   @Override
@@ -43,7 +45,7 @@ public final class CDoc extends CNode {
 
   @Override
   public Expr copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new CDoc(sc, info, exprs[0].copy(cc, vm));
+    return copyType(new CDoc(sc, info, computed, exprs[0].copy(cc, vm)));
   }
 
   @Override
@@ -52,7 +54,7 @@ public final class CDoc extends CNode {
   }
 
   @Override
-  public String toString() {
-    return toString(DOCUMENT);
+  public void plan(final QueryString qs) {
+    plan(qs, DOCUMENT);
   }
 }

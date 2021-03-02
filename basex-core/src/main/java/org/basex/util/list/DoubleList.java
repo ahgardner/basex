@@ -7,7 +7,7 @@ import org.basex.util.*;
 /**
  * Resizable-array implementation for native double values.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public class DoubleList extends ElementList {
@@ -25,8 +25,8 @@ public class DoubleList extends ElementList {
    * Constructor with initial capacity.
    * @param capacity array capacity
    */
-  public DoubleList(final int capacity) {
-    list = new double[capacity];
+  public DoubleList(final long capacity) {
+    list = new double[Array.checkCapacity(capacity)];
   }
 
   /**

@@ -17,7 +17,7 @@ import org.basex.util.hash.*;
 /**
  * Value comparison.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class CmpV extends Cmp {
@@ -144,7 +144,9 @@ public final class CmpV extends Cmp {
     public abstract OpV invert();
 
     @Override
-    public String toString() { return name; }
+    public String toString() {
+      return name;
+    }
   }
 
   /** Operator. */
@@ -161,13 +163,13 @@ public final class CmpV extends Cmp {
    */
   public CmpV(final Expr expr1, final Expr expr2, final OpV opV, final Collation coll,
       final StaticContext sc, final InputInfo info) {
-    super(info, expr1, expr2, coll, SeqType.BLN_ZO, sc);
+    super(info, expr1, expr2, coll, SeqType.BOOLEAN_ZO, sc);
     this.opV = opV;
   }
 
   @Override
   public Expr optimize(final CompileContext cc) throws QueryException {
-    simplifyAll(Simplify.ATOM, cc);
+    simplifyAll(Simplify.STRING, cc);
 
     // swap operands
     if(swap()) {
@@ -177,27 +179,25 @@ public final class CmpV extends Cmp {
 
     Expr expr = emptyExpr();
     if(expr == this) {
-      if(allAreValues(false)) {
-        expr = value(cc.qc);
-      } else {
-        // check if operands will always yield a single item
-        final Expr expr1 = exprs[0], expr2 = exprs[1];
-        final SeqType st1 = expr1.seqType(), st2 = expr2.seqType();
-        if(st1.oneOrMore() && !st1.mayBeArray() && st2.oneOrMore() && !st2.mayBeArray()) {
-          exprType.assign(Occ.ONE);
+      if(allAreValues(false)) return cc.preEval(this);
 
-          // no type check: rewrite to general expression (faster evaluation)
-          final Type type1 = st1.type, type2 = st2.type;
-          if(st1.one() && st2.one() && (
-            type1 == type2 && !AtomType.AAT.instanceOf(type1) &&
-              (type1.isSortable() || opV != OpV.EQ && opV != OpV.NE) ||
-            type1.isStringOrUntyped() && type2.isStringOrUntyped() ||
-            type1 == AtomType.QNM && type2 == AtomType.QNM ||
-            type1.instanceOf(AtomType.NUM) && type2.instanceOf(AtomType.NUM) ||
-            type1.instanceOf(AtomType.DUR) && type2.instanceOf(AtomType.DUR))
-          ) {
-            expr = new CmpG(expr1, expr2, OpG.get(opV), coll, sc, info).optimize(cc);
-          }
+      // check if operands will always yield a single item
+      final Expr expr1 = exprs[0], expr2 = exprs[1];
+      final SeqType st1 = expr1.seqType(), st2 = expr2.seqType();
+      if(st1.oneOrMore() && !st1.mayBeArray() && st2.oneOrMore() && !st2.mayBeArray()) {
+        exprType.assign(Occ.EXACTLY_ONE);
+
+        // no type check: rewrite to general expression (faster evaluation)
+        final Type type1 = st1.type, type2 = st2.type;
+        if(st1.one() && st2.one() && (
+          type1 == type2 && !AtomType.ANY_ATOMIC_TYPE.instanceOf(type1) &&
+            (type1.isSortable() || opV != OpV.EQ && opV != OpV.NE) ||
+          type1.isStringOrUntyped() && type2.isStringOrUntyped() ||
+          type1 == AtomType.QNAME && type2 == AtomType.QNAME ||
+          type1.instanceOf(AtomType.NUMERIC) && type2.instanceOf(AtomType.NUMERIC) ||
+          type1.instanceOf(AtomType.DURATION) && type2.instanceOf(AtomType.DURATION))
+        ) {
+          expr = new CmpG(expr1, expr2, OpG.get(opV), coll, sc, info).optimize(cc);
         }
       }
     }
@@ -216,11 +216,11 @@ public final class CmpV extends Cmp {
   }
 
   @Override
-  public Expr invert(final CompileContext cc) throws QueryException {
+  public Expr invert() {
     final Expr expr1 = exprs[0], expr2 = exprs[1];
     final SeqType st1 = expr1.seqType(), st2 = expr2.seqType();
     return st1.one() && !st1.mayBeArray() && st2.one() && !st2.mayBeArray() ?
-      new CmpV(expr1, expr2, opV.invert(), coll, sc, info).optimize(cc) : this;
+      new CmpV(expr1, expr2, opV.invert(), coll, sc, info) : null;
   }
 
   @Override
@@ -249,7 +249,7 @@ public final class CmpV extends Cmp {
   }
 
   @Override
-  public String toString() {
-    return toString(" " + opV + ' ');
+  public void plan(final QueryString qs) {
+    qs.tokens(exprs, " " + opV + ' ', true);
   }
 }

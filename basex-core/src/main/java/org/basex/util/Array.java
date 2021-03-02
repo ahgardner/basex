@@ -7,7 +7,7 @@ import org.basex.util.list.*;
 /**
  * Convenience functions for handling arrays; serves as an extension to Java's {@link Arrays} class.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class Array {
@@ -19,6 +19,7 @@ public final class Array {
   public static final int MAX_CAPACITY = 1 << 20;
   /** Default factor for resizing dynamic arrays. */
   public static final double RESIZE_CAPACITY = 1.5;
+
   /** Private constructor. */
   private Array() { }
 
@@ -281,7 +282,7 @@ public final class Array {
   }
 
   /**
-   * Returns an initial array capacity.
+   * Returns an initial array capacity, which will not exceed {@link #MAX_CAPACITY}.
    * @param size size expected result size (ignored if negative)
    * @return capacity
    */
@@ -290,8 +291,10 @@ public final class Array {
   }
 
   /**
-   * Returns a value for a new array size, which will always be larger than the specified value.
-   * @param size old size
+   * Returns a value for a new array size, which will always be larger than the old size.
+   * The returned value will not exceed the maximum allowed array size.
+   * If the maximum is reached, an exception is thrown.
+   * @param size old array capacity
    * @return new capacity
    */
   public static int newCapacity(final int size) {
@@ -299,15 +302,25 @@ public final class Array {
   }
 
   /**
-   * Returns a value for a new array size, which will always be larger than the specified value.
-   * @param size old size
+   * Returns a value for a new array size, which will always be larger than the old size.
+   * The returned value will not exceed the maximum allowed array size.
+   * If the maximum is reached, an exception is thrown.
+   * @param size old array capacity
    * @param factor resize factor; must be larger than or equal to 1
-   * @return resulting size
+   * @return new capacity
    */
   public static int newCapacity(final int size, final double factor) {
-    final int sz = Math.min(MAX_SIZE, (int) (size * factor) + 1);
-    if(sz > size) return sz;
-    throw new ArrayIndexOutOfBoundsException("Maximum array size reached.");
+    return (int) Math.min(MAX_SIZE, factor * checkCapacity(size + 1));
+  }
+
+  /**
+   * Raises an exception if the specified size exceeds the maximum array size.
+   * @param size array capacity
+   * @return argument as integer, or {@code 0} if the argument is negative
+   */
+  public static int checkCapacity(final long size) {
+    if(size > MAX_SIZE) throw new ArrayIndexOutOfBoundsException("Maximum array size reached.");
+    return Math.max(0, (int) size);
   }
 
   /**

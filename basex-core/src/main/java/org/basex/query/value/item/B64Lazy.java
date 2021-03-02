@@ -11,7 +11,7 @@ import org.basex.util.*;
 /**
  * Lazy base64 item ({@code xs:base64Binary}).
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class B64Lazy extends B64 implements Lazy {
@@ -70,7 +70,11 @@ public final class B64Lazy extends B64 implements Lazy {
   }
 
   @Override
-  public String toString() {
-    return isCached() ? super.toString() : Function._FILE_READ_BINARY.args(input).substring(1);
+  public void plan(final QueryString qs) {
+    if(isCached()) {
+      super.plan(qs);
+    } else {
+      qs.function(Function._FILE_READ_BINARY, input);
+    }
   }
 }

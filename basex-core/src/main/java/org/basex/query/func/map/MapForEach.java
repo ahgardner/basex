@@ -12,7 +12,7 @@ import org.basex.query.value.type.*;
 /**
  * Function implementation.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public class MapForEach extends StandardFunc {
@@ -29,7 +29,7 @@ public class MapForEach extends StandardFunc {
     if(type1 instanceof MapType) {
       final MapType mtype1 = (MapType) type1;
       exprs[1] = coerceFunc(exprs[1], cc, SeqType.ITEM_ZM,
-          mtype1.argTypes[0].with(Occ.ONE), mtype1.declType);
+          mtype1.argTypes[0].with(Occ.EXACTLY_ONE), mtype1.declType);
     }
 
     final boolean updating = this instanceof UpdateMapForEach;

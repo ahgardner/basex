@@ -10,7 +10,7 @@ import org.basex.util.*;
 /**
  * Namespace node.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FNSpace extends FNode {
@@ -23,7 +23,7 @@ public final class FNSpace extends FNode {
    * @param value value
    */
   public FNSpace(final byte[] name, final byte[] value) {
-    super(NodeType.NSP);
+    super(NodeType.NAMESPACE_NODE);
     this.name = name;
     this.value = value;
   }
@@ -55,9 +55,10 @@ public final class FNSpace extends FNode {
   }
 
   @Override
-  public String toString() {
+  public void plan(final QueryString qs) {
     final TokenBuilder tb = new TokenBuilder().add(Token.XMLNS);
     if(name.length != 0) tb.add(':').add(name);
-    return tb.add('=').add(toQuotedToken(value)).toString();
+    tb.add('=').add(QueryString.toQuoted(value));
+    qs.token(tb.finish());
   }
 }

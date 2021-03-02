@@ -18,7 +18,7 @@ import org.basex.util.hash.*;
 /**
  * Grouping spec.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class GroupSpec extends Single {
@@ -31,7 +31,6 @@ public final class GroupSpec extends Single {
 
   /**
    * Constructor.
-   *
    * @param info input info
    * @param var grouping variable
    * @param expr grouping expression
@@ -44,15 +43,15 @@ public final class GroupSpec extends Single {
   }
 
   @Override
-  public Item item(final QueryContext qc, final InputInfo ii) throws QueryException {
-    return expr.item(qc, info);
+  public Item atomItem(final QueryContext qc, final InputInfo ii) throws QueryException {
+    return expr.atomItem(qc, ii);
   }
 
   @Override
   public Expr copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    final GroupSpec spec = copyType(new GroupSpec(info, cc.copy(var, vm), expr.copy(cc, vm), coll));
+    final GroupSpec spec = new GroupSpec(info, cc.copy(var, vm), expr.copy(cc, vm), coll);
     spec.occluded = occluded;
-    return spec;
+    return copyType(spec);
   }
 
   @Override
@@ -62,11 +61,11 @@ public final class GroupSpec extends Single {
 
   @Override
   public GroupSpec optimize(final CompileContext cc) throws QueryException {
-    expr = expr.simplifyFor(Simplify.ATOM, cc);
+    expr = expr.simplifyFor(Simplify.DATA, cc);
 
-    adoptType(expr);
+    exprType.assign(expr);
     final AtomType type = expr.seqType().type.atomic();
-    if(type != null) var.refineType(seqType().with(type), cc);
+    if(type != null) var.refineType(SeqType.get(type, seqType().occ), cc);
     return this;
   }
 
@@ -95,9 +94,8 @@ public final class GroupSpec extends Single {
   }
 
   @Override
-  public String toString() {
-    final TokenBuilder tb = new TokenBuilder().add(var).add(' ').add(ASSIGN).add(' ').add(expr);
-    if(coll != null) tb.add(' ').add(COLLATION).add(" \"").add(coll.uri()).add('"');
-    return tb.toString();
+  public void plan(final QueryString qs) {
+    qs.token(var).token(ASSIGN).token(expr);
+    if(coll != null) qs.token(COLLATION).token("\"").token(coll.uri()).token('"');
   }
 }

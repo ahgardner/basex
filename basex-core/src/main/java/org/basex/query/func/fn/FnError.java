@@ -15,7 +15,7 @@ import org.basex.util.*;
 /**
  * Function implementation.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FnError extends StandardFunc {
@@ -55,7 +55,7 @@ public final class FnError extends StandardFunc {
   /**
    * Creates an error function instance.
    * @param ex query exception
-   * @param st type of the expression
+   * @param st type of the expression that caused the error message
    * @param sc static context
    * @return function
    */

@@ -14,7 +14,7 @@ import org.basex.util.hash.*;
 /**
  * Group of switch cases (case ... case ... return ...).
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class SwitchGroup extends Arr {
@@ -49,35 +49,36 @@ public final class SwitchGroup extends Arr {
   }
 
   @Override
-  public Expr optimize(final CompileContext cc) throws QueryException {
+  public SwitchGroup optimize(final CompileContext cc) throws QueryException {
     final int el = exprs.length;
-    for(int e = 1; e < el; e++) exprs[e] = exprs[e].simplifyFor(Simplify.ATOM, cc);
-    return this;
+    for(int e = 1; e < el; e++) {
+      exprs[e] = exprs[e].simplifyFor(Simplify.STRING, cc);
+    }
+    return (SwitchGroup) adoptType(rtrn());
   }
 
   @Override
   public Expr copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new SwitchGroup(info, copyAll(cc, vm, exprs));
+    return copyType(new SwitchGroup(info, copyAll(cc, vm, exprs)));
   }
 
   @Override
-  public Expr inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-    boolean changed = false;
-    final int el = exprs.length;
-    for(int e = 0; e < el; e++) {
-      Expr inlined;
-      try {
-        inlined = exprs[e].inline(ei, ex, cc);
-      } catch(final QueryException qe) {
-        inlined = cc.error(qe, exprs[e]);
-      }
-      if(inlined != null) {
-        exprs[e] = inlined;
-        changed = true;
-      }
+  public Expr inline(final InlineContext ic) throws QueryException {
+    return ic.inline(exprs, true) ? optimize(ic.cc) : null;
+  }
+
+  @Override
+  public Expr typeCheck(final TypeCheck tc, final CompileContext cc) throws QueryException {
+    Expr ex = rtrn();
+    try {
+      ex = tc.check(ex, cc);
+    } catch(final QueryException qe) {
+      ex = cc.error(qe, ex);
     }
-    return changed ? optimize(cc) : null;
+    // returned expression will be handled Switch#typeCheck
+    if(ex == null) return null;
+    exprs[0] = ex;
+    return optimize(cc);
   }
 
   /**
@@ -86,7 +87,7 @@ public final class SwitchGroup extends Arr {
    */
   @Override
   public VarUsage count(final Var var) {
-    return exprs[0].count(var);
+    return rtrn().count(var);
   }
 
   /**
@@ -96,12 +97,13 @@ public final class SwitchGroup extends Arr {
    * @return number of occurrences
    */
   VarUsage countCases(final Var var) {
-    VarUsage all = VarUsage.NEVER;
+    VarUsage uses = VarUsage.NEVER;
     final int el = exprs.length;
     for(int e = 1; e < el; e++) {
-      if((all = all.plus(exprs[e].count(var))) == VarUsage.MORE_THAN_ONCE) break;
+      uses = uses.plus(exprs[e].count(var));
+      if(uses == VarUsage.MORE_THAN_ONCE) break;
     }
-    return all;
+    return uses;
   }
 
   /**
@@ -122,6 +124,14 @@ public final class SwitchGroup extends Arr {
   }
 
   /**
+   * Returns the return expression.
+   * @return return expression
+   */
+  Expr rtrn() {
+    return exprs[0];
+  }
+
+  /**
    * Simplifies all expressions for requests of the specified type.
    * @param mode mode of simplification
    * @param cc compilation context
@@ -129,10 +139,15 @@ public final class SwitchGroup extends Arr {
    * @throws QueryException query exception
    */
   boolean simplify(final Simplify mode, final CompileContext cc) throws QueryException {
-    final Expr expr = exprs[0].simplifyFor(mode, cc);
-    if(expr == exprs[0]) return false;
+    final Expr expr = rtrn().simplifyFor(mode, cc);
+    if(expr == rtrn()) return false;
     exprs[0] = expr;
     return true;
+  }
+
+  @Override
+  public void markTailCalls(final CompileContext cc) {
+    rtrn().markTailCalls(cc);
   }
 
   @Override
@@ -148,11 +163,10 @@ public final class SwitchGroup extends Arr {
   }
 
   @Override
-  public String toString() {
-    final StringBuilder sb = new StringBuilder();
+  public void plan(final QueryString qs) {
     final int el = exprs.length;
-    for(int e = 1; e < el; ++e) sb.append(' ').append(CASE).append(' ').append(exprs[e]);
-    if(el == 1) sb.append(' ').append(DEFAULT);
-    return sb.append(' ').append(RETURN).append(' ').append(exprs[0]).toString();
+    for(int e = 1; e < el; e++) qs.token(CASE).token(exprs[e]);
+    if(el == 1) qs.token(DEFAULT);
+    qs.token(RETURN).token(rtrn());
   }
 }

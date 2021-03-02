@@ -10,7 +10,7 @@ import org.basex.util.*;
 /**
  * Abstract pragma expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public abstract class Pragma extends ExprInfo {
@@ -83,9 +83,7 @@ public abstract class Pragma extends ExprInfo {
   }
 
   @Override
-  public final String toString() {
-    final TokenBuilder tb = new TokenBuilder().add(PRAGMA + ' ' + name + ' ');
-    if(value.length != 0) tb.add(value).add(' ');
-    return tb.add(PRAGMA2).toString();
+  public final void plan(final QueryString qs) {
+    qs.token(PRAGMA).token(name).token(value).token(PRAGMA2);
   }
 }

@@ -14,7 +14,7 @@ import org.junit.jupiter.api.*;
 /**
  * Tests all function signatures.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class SignatureTest extends SandboxTest {
@@ -55,11 +55,11 @@ public final class SignatureTest extends SandboxTest {
         if(p != 0) qu.append(", ");
         if(in) {
           // test arguments
-          if(fd.params[p].type == AtomType.STR) {
-            qu.append('1');
+          if(fd.params[p].type == AtomType.STRING) {
+            qu.append((char) (48 + p));
           } else { // any type (skip test)
-            qu.append("'X'");
-            if(SeqType.STR_O.instanceOf(fd.params[p])) any++;
+            qu.append("'").append((char) (65 + p)).append("'");
+            if(SeqType.STRING_O.instanceOf(fd.params[p])) any++;
           }
         } else {
           // test wrong number of arguments
@@ -70,7 +70,7 @@ public final class SignatureTest extends SandboxTest {
       if((min > 0 || al != 0) && (any == 0 || any != al)) {
         final String query = qu.append(')').toString();
         // wrong types: XPTY0004, FORG0006, FODC0002, BXDB0001, BXDB0004, FORG0001
-        if(in) error(query, INVTYPE_X_X_X, NONUMBER_X_X, INVFUNCITEM_X_X, ZEROFUNCS_X_X,
+        if(in) error(query, INVTYPE_X_X_X, NONUMBER_X_X, INVFUNCITEM_X_X, ZEROFUNCS_X_X, NODOC_X,
             BINARY_X, STRBIN_X_X, WHICHRES_X, DB_NODE_X, MAP_X_X, FUNCARITY_X_X, FUNCCAST_X_X);
         // wrong number of arguments: XPST0017
         else error(query, FUNCARITY_X_X_X);

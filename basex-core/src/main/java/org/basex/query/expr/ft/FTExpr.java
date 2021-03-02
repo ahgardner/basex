@@ -14,7 +14,7 @@ import org.basex.util.hash.*;
 /**
  * This class defines is an abstract class for full-text expressions.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public abstract class FTExpr extends ParseExpr {
@@ -27,7 +27,7 @@ public abstract class FTExpr extends ParseExpr {
    * @param exprs expressions
    */
   FTExpr(final InputInfo info, final FTExpr... exprs) {
-    super(info, SeqType.BLN_O);
+    super(info, SeqType.BOOLEAN_O);
     this.exprs = exprs;
   }
 
@@ -81,9 +81,9 @@ public abstract class FTExpr extends ParseExpr {
   }
 
   @Override
-  public boolean inlineable(final Var var) {
+  public boolean inlineable(final InlineContext ic) {
     for(final Expr expr : exprs) {
-      if(!expr.inlineable(var)) return false;
+      if(!expr.inlineable(ic)) return false;
     }
     return true;
   }
@@ -94,9 +94,8 @@ public abstract class FTExpr extends ParseExpr {
   }
 
   @Override
-  public FTExpr inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-    return inlineAll(ei, ex, exprs, cc) ? optimize(cc) : null;
+  public FTExpr inline(final InlineContext ic) throws QueryException {
+    return ic.inline(exprs) ? optimize(ic.cc) : null;
   }
 
   @Override
@@ -133,17 +132,5 @@ public abstract class FTExpr extends ParseExpr {
   @Override
   public void plan(final QueryPlan plan) {
     plan.add(plan.create(this), exprs);
-  }
-
-  /**
-   * Prints the array with the specified separator.
-   * @param sep separator
-   * @return string representation
-   */
-  final String toString(final Object sep) {
-    final StringBuilder sb = new StringBuilder();
-    final int el = exprs.length;
-    for(int e = 0; e < el; e++) sb.append(e == 0 ? "" : sep.toString()).append(exprs[e]);
-    return sb.toString();
   }
 }

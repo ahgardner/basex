@@ -1,6 +1,7 @@
 package org.basex.query.expr;
 
 import org.basex.core.locks.*;
+import org.basex.data.*;
 import org.basex.query.*;
 import org.basex.query.util.*;
 import org.basex.query.value.*;
@@ -12,10 +13,13 @@ import org.basex.util.hash.*;
 /**
  * Context value.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class ContextValue extends Simple {
+  /** Data reference (can be {@code null}). */
+  private Data data;
+
   /**
    * Constructor.
    * @param info input info
@@ -24,12 +28,21 @@ public final class ContextValue extends Simple {
     super(info, SeqType.ITEM_ZM);
   }
 
+  /**
+   * Creates a new, optimized context value expression.
+   * @param cc compilation context
+   * @param ii input info
+   * @return optimized expression
+   */
+  public static Expr get(final CompileContext cc, final InputInfo ii) {
+    return new ContextValue(ii).optimize(cc);
+  }
+
   @Override
   public Expr optimize(final CompileContext cc) {
     final Value value = cc.qc.focus.value;
     if(value != null) {
       if(!cc.nestedFocus()) return cc.replaceWith(this, value);
-      exprType.assign(Occ.ONE);
       adoptType(value);
     }
     return this;
@@ -46,8 +59,23 @@ public final class ContextValue extends Simple {
   }
 
   @Override
-  public Expr inline(final ExprInfo ei, final Expr ex, final CompileContext cc) {
-    return ei != null ? null : ex;
+  public VarUsage count(final Var var) {
+    return var == null ? VarUsage.ONCE : VarUsage.NEVER;
+  }
+
+  @Override
+  public Expr inline(final InlineContext ic) throws QueryException {
+    return ic.var == null ? ic.copy() : null;
+  }
+
+  @Override
+  public Data data() {
+    return data;
+  }
+
+  @Override
+  public void data(final Data dt) {
+    data = dt;
   }
 
   @Override
@@ -66,7 +94,7 @@ public final class ContextValue extends Simple {
   }
 
   @Override
-  public String toString() {
-    return ".";
+  public void plan(final QueryString qs) {
+    qs.token(".");
   }
 }

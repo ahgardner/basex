@@ -11,7 +11,7 @@ import org.basex.util.*;
 /**
  * Insert attribute primitive.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Lukas Kircher
  */
 public final class InsertAttribute extends NodeCopy {
@@ -36,7 +36,7 @@ public final class InsertAttribute extends NodeCopy {
   @Override
   public void merge(final Update update) {
     final ANodeList newInsert = ((NodeCopy) update).nodes;
-    for(final ANode n : newInsert) nodes.add(n);
+    for(final ANode node : newInsert) nodes.add(node);
   }
 
   @Override

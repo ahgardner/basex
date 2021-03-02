@@ -15,7 +15,7 @@ import org.basex.util.*;
 /**
  * Abstract update expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 abstract class Update extends Arr {
@@ -29,7 +29,7 @@ abstract class Update extends Arr {
    * @param expr expressions
    */
   Update(final StaticContext sc, final InputInfo info, final Expr... expr) {
-    super(info, SeqType.EMP, expr);
+    super(info, SeqType.EMPTY_SEQUENCE_Z, expr);
     this.sc = sc;
   }
 
@@ -46,8 +46,8 @@ abstract class Update extends Arr {
    * @throws QueryException query exception
    */
   final ANodeList checkNS(final ANodeList list, final ANode targ) throws QueryException {
-    for(final ANode n : list) {
-      final QNm name = n.qname();
+    for(final ANode node : list) {
+      final QNm name = node.qname();
       final byte[] pref = name.prefix();
       // attributes without prefix have no namespace
       if(pref.length == 0) continue;

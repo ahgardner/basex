@@ -24,10 +24,10 @@ import org.basex.util.http.*;
 /**
  * This class creates a new HTTP response.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
-public final class RestXqResponse extends WebResponse {
+final class RestXqResponse extends WebResponse {
   /** HTTP connection. */
   private final HTTPConnection conn;
 
@@ -42,7 +42,7 @@ public final class RestXqResponse extends WebResponse {
    * Constructor.
    * @param conn HTTP connection
    */
-  public RestXqResponse(final HTTPConnection conn) {
+  RestXqResponse(final HTTPConnection conn) {
     super(conn.context);
     this.conn = conn;
   }
@@ -81,12 +81,12 @@ public final class RestXqResponse extends WebResponse {
       boolean head = true;
 
       // handle special cases
-      if(item != null && item.type == NodeType.ELM) {
+      if(item != null && item.type == NodeType.ELEMENT) {
         final ANode node = (ANode) item;
         if(REST_FORWARD.matches(node)) {
           // server-side forwarding
           final ANode ch = node.childIter().next();
-          if(ch == null || ch.type != NodeType.TXT) throw func.error(NO_VALUE_X, node.name());
+          if(ch == null || ch.type != NodeType.TEXT) throw func.error(NO_VALUE_X, node.name());
           forward = string(ch.string()).trim();
           item = iter.next();
         } else if(REST_RESPONSE.matches(node)) {
@@ -161,12 +161,12 @@ public final class RestXqResponse extends WebResponse {
     // parse response and serialization parameters
     SerializerOptions sp = func.output;
     String cType = null;
-    for(final ANode n : response.childIter()) {
+    for(final ANode node : response.childIter()) {
       // process http:response element
-      if(HTTP_RESPONSE.matches(n)) {
+      if(HTTP_RESPONSE.matches(node)) {
         // check status and reason
         byte[] sta = null, msg = null;
-        for(final ANode a : n.attributeIter()) {
+        for(final ANode a : node.attributeIter()) {
           final QNm qnm = a.qname();
           if(qnm.eq(Q_STATUS)) sta = a.string();
           else if(qnm.eq(Q_REASON) || qnm.eq(Q_MESSAGE)) msg = a.string();
@@ -177,7 +177,7 @@ public final class RestXqResponse extends WebResponse {
           message = msg != null ? string(msg) : null;
         }
 
-        for(final ANode c : n.childIter()) {
+        for(final ANode c : node.childIter()) {
           // process http:header elements
           if(HTTP_HEADER.matches(c)) {
             final byte[] nam = c.attribute(Q_NAME);
@@ -195,11 +195,11 @@ public final class RestXqResponse extends WebResponse {
             throw func.error(UNEXP_NODE_X, c);
           }
         }
-      } else if(OUTPUT_SERIAL.matches(n)) {
+      } else if(OUTPUT_SERIAL.matches(node)) {
         // parse output:serialization-parameters
-        sp = FuncOptions.serializer(n, func.output, func.function.info);
+        sp = FuncOptions.serializer(node, func.output, func.function.info);
       } else {
-        throw func.error(UNEXP_NODE_X, n);
+        throw func.error(UNEXP_NODE_X, node);
       }
     }
     if(status == null) status = SC_OK;

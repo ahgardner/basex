@@ -11,7 +11,7 @@ import org.basex.util.*;
 /**
  * Function implementation.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FnFunctionLookup extends StandardFunc {
@@ -32,7 +32,7 @@ public final class FnFunctionLookup extends StandardFunc {
   @Override
   protected Expr opt(final CompileContext cc) {
     // make sure that all functions are compiled
-    cc.qc.funcs.compile(cc, true);
+    cc.qc.funcs.compileAll(cc);
     return this;
   }
 

@@ -1,7 +1,6 @@
 package org.basex.query.value.type;
 
 import static org.basex.query.QueryError.*;
-import static org.basex.query.QueryText.*;
 import static org.basex.util.Token.*;
 
 import java.util.*;
@@ -12,14 +11,21 @@ import org.basex.query.util.list.*;
 import org.basex.query.value.item.*;
 import org.basex.query.var.*;
 import org.basex.util.*;
+import org.basex.util.list.*;
+import org.basex.util.similarity.*;
 
 /**
  * XQuery 3.0 function types.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public class FuncType implements Type {
+  /** Name. */
+  public static final byte[] FUNCTION = Token.token(QueryText.FUNCTION);
+  /** Any function placeholder string. */
+  static final String[] WILDCARD = { "*" };
+
   /** Annotations. */
   public final AnnList anns;
   /** Return type of the function. */
@@ -78,13 +84,9 @@ public class FuncType implements Type {
 
   @Override
   public SeqType seqType(final Occ occ) {
+    // cannot statically be instantiated due to circular dependencies
     if(seqTypes == null) seqTypes = new EnumMap<>(Occ.class);
     return seqTypes.computeIfAbsent(occ, o -> new SeqType(this, o));
-  }
-
-  @Override
-  public byte[] string() {
-    return token(FUNCTION);
   }
 
   @Override
@@ -93,7 +95,7 @@ public class FuncType implements Type {
 
     if(!(item instanceof FItem)) throw typeError(item, this, ii);
     final FItem func = (FItem) item;
-    return this == SeqType.ANY_FUNC ? func : func.coerceTo(this, qc, ii, false);
+    return this == SeqType.FUNCTION ? func : func.coerceTo(this, qc, ii, false);
   }
 
   @Override
@@ -114,8 +116,8 @@ public class FuncType implements Type {
     if(type.getClass() != FuncType.class) return false;
     final FuncType ft = (FuncType) type;
 
-    if(this == SeqType.ANY_FUNC || ft == SeqType.ANY_FUNC ||
-        argTypes.length != ft.argTypes.length) return false;
+    if(this == SeqType.FUNCTION || ft == SeqType.FUNCTION || argTypes.length != ft.argTypes.length)
+      return false;
 
     final int al = argTypes.length;
     for(int a = 0; a < al; a++) {
@@ -126,8 +128,8 @@ public class FuncType implements Type {
 
   @Override
   public boolean instanceOf(final Type type) {
-    if(this == type || type == AtomType.ITEM || type == SeqType.ANY_FUNC) return true;
-    if(this == SeqType.ANY_FUNC || !(type instanceof FuncType) || type instanceof MapType ||
+    if(type.oneOf(this, SeqType.FUNCTION, AtomType.ITEM)) return true;
+    if(this == SeqType.FUNCTION || !(type instanceof FuncType) || type instanceof MapType ||
         type instanceof ArrayType) return false;
 
     final FuncType ft = (FuncType) type;
@@ -151,12 +153,12 @@ public class FuncType implements Type {
 
     final FuncType ft = (FuncType) type;
     final int al = argTypes.length;
-    if(al != ft.argTypes.length) return SeqType.ANY_FUNC;
+    if(al != ft.argTypes.length) return SeqType.FUNCTION;
 
     final SeqType[] arg = new SeqType[al];
     for(int a = 0; a < al; a++) {
       arg[a] = argTypes[a].intersect(ft.argTypes[a]);
-      if(arg[a] == null) return SeqType.ANY_FUNC;
+      if(arg[a] == null) return SeqType.FUNCTION;
     }
 
     final AnnList an = anns.union(ft.anns);
@@ -215,11 +217,37 @@ public class FuncType implements Type {
   public static Type find(final QNm name) {
     if(name.uri().length == 0) {
       final byte[] ln = name.local();
-      if(Token.eq(ln, token(FUNCTION))) return SeqType.ANY_FUNC;
-      if(Token.eq(ln, token(MAP))) return SeqType.ANY_MAP;
-      if(Token.eq(ln, token(ARRAY))) return SeqType.ANY_ARRAY;
+      if(Token.eq(ln, FuncType.FUNCTION)) return SeqType.FUNCTION;
+      if(Token.eq(ln, MapType.MAP)) return SeqType.MAP;
+      if(Token.eq(ln, ArrayType.ARRAY)) return SeqType.ARRAY;
     }
     return null;
+  }
+
+  /**
+   * Returns an info message for a similar function.
+   * @param qname name of type
+   * @return info string
+   */
+  public static byte[] similar(final QNm qname) {
+    final byte[] ln = lc(qname.local());
+
+    final TokenList list = new TokenList();
+    list.add(AtomType.ITEM.qname().local()).add(FuncType.FUNCTION);
+    list.add(MapType.MAP).add(ArrayType.ARRAY);
+    for(final NodeType type : NodeType.values()) list.add(type.qname().local());
+    final byte[][] values = list.finish();
+
+    Object similar = Levenshtein.similar(ln, values);
+    if(similar == null) {
+      for(final byte[] value : values) {
+        if(startsWith(value, ln)) {
+          similar = value;
+          break;
+        }
+      }
+    }
+    return QueryError.similar(qname.prefixId(XML), similar);
   }
 
   /**
@@ -255,12 +283,9 @@ public class FuncType implements Type {
 
   @Override
   public String toString() {
-    final TokenBuilder tb = new TokenBuilder().add(anns).add(FUNCTION).add('(');
-    if(this == SeqType.ANY_FUNC) {
-      tb.add('*').add(')');
-    } else {
-      tb.addSeparated(argTypes, ", ").add(") as ").add(declType);
-    }
-    return tb.toString();
+    final QueryString qs = new QueryString().token(anns).token(FUNCTION);
+    if(this == SeqType.FUNCTION) qs.params(WILDCARD);
+    else qs.params(argTypes).token(QueryText.AS).token(declType);
+    return qs.toString();
   }
 }

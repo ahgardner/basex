@@ -9,7 +9,7 @@ import org.junit.jupiter.api.*;
 /**
  * This class tests the functions of the Array Module.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class ArrayModuleTest extends QueryPlanTest {
@@ -165,6 +165,13 @@ public final class ArrayModuleTest extends QueryPlanTest {
     query(func.args(" ([1], [2])"), "[1, 2]");
     query(func.args(" ([1], [2], [3])"), "[1, 2, 3]");
     query(func.args(" ([1], [()], [2 to 3])"), "[1, (), (2, 3)]");
+
+    check(func.args(" [ <a/> ]") + "?1", "<a/>", empty(func));
+    check(func.args(" ([ <a/> ], [])") + "?1", "<a/>", empty(func));
+    check(func.args(" ([ <a/> ], [])") + "?*", "<a/>", empty(func));
+
+    // GH-1954
+    query(func.args(" if (<a/>/text()) then array { } else ()") + " ! array:size(.)", 0);
   }
 
   /** Test method. */

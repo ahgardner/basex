@@ -17,7 +17,7 @@ import org.w3c.dom.*;
 /**
  * Element node fragment.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FElem extends FNode {
@@ -102,7 +102,7 @@ public final class FElem extends FNode {
    * @param atts attributes, may be {@code null}
    */
   public FElem(final QNm name, final Atts ns, final ANodeList children, final ANodeList atts) {
-    super(NodeType.ELM);
+    super(NodeType.ELEMENT);
     this.name = name;
     this.children = children;
     this.atts = atts;
@@ -116,8 +116,8 @@ public final class FElem extends FNode {
    * @param parent parent reference (can be {@code null})
    * @param nss namespaces in scope
    */
-  public FElem(final Element elem, final ANode parent, final TokenMap nss) {
-    super(NodeType.ELM);
+  public FElem(final Element elem, final FNode parent, final TokenMap nss) {
+    super(NodeType.ELEMENT);
 
     this.parent = parent;
     final String nu = elem.getNamespaceURI();
@@ -133,7 +133,7 @@ public final class FElem extends FNode {
       final byte[] nm = token(att.getName()), uri = token(att.getValue());
       if(Token.eq(nm, XMLNS)) {
         ns.add(EMPTY, uri);
-      } else if(startsWith(nm, XMLNSC)) {
+      } else if(startsWith(nm, XMLNS_COLON)) {
         ns.add(local(nm), uri);
       } else {
         add(new FAttr(att));
@@ -218,11 +218,11 @@ public final class FElem extends FNode {
   public FElem optimize() {
     // update parent references and invalidate empty arrays
     if(children != null) {
-      for(final ANode n : children) n.parent(this);
+      for(final ANode node : children) node.parent(this);
       if(children.isEmpty()) children = null;
     }
     if(atts != null) {
-      for(final ANode n : atts) n.parent(this);
+      for(final ANode node : atts) node.parent(this);
       if(atts.isEmpty()) atts = null;
     }
     if(ns != null && ns.isEmpty()) ns = null;
@@ -244,7 +244,7 @@ public final class FElem extends FNode {
    * @return self reference
    */
   public FElem add(final ANode node) {
-    if(node.type == NodeType.ATT) {
+    if(node.type == NodeType.ATTRIBUTE) {
       if(atts == null) atts = new ANodeList();
       atts.add(node);
     } else {
@@ -396,10 +396,10 @@ public final class FElem extends FNode {
       for(int n = 0; n < nl; ++n) as.add(ns.name(n), ns.value(n));
     }
     if(at != null) {
-      for(final ANode n : atts) at.add(n.materialize(qc, true));
+      for(final ANode nd : atts) at.add(nd.materialize(qc, true));
     }
     if(ch != null) {
-      for(final ANode n : children) ch.add(n.materialize(qc, true));
+      for(final ANode nd : children) ch.add(nd.materialize(qc, true));
     }
     return node.optimize();
   }
@@ -419,8 +419,9 @@ public final class FElem extends FNode {
   }
 
   @Override
-  public String toString() {
-    final TokenBuilder tb = new TokenBuilder().add('<').add(name.string());
+  public void plan(final QueryString qs) {
+    final byte[] nm = name.string();
+    final TokenBuilder tb = new TokenBuilder().add('<').add(nm);
     if(ns != null) {
       final int nl = ns.size();
       for(int n = 0; n < nl; n++) {
@@ -433,15 +434,15 @@ public final class FElem extends FNode {
     if(hasChildren()) {
       tb.add('>');
       final ANode child = children.get(0);
-      if(child.type == NodeType.TXT && children.size() == 1) {
-        tb.add(toToken(child.value));
+      if(child.type == NodeType.TEXT && children.size() == 1) {
+        tb.add(QueryString.toValue(child.value));
       } else {
         tb.add(DOTS);
       }
-      tb.add("</").add(name.string()).add('>');
+      tb.add("</").add(nm).add('>');
     } else {
       tb.add("/>");
     }
-    return tb.toString();
+    qs.token(tb.finish());
   }
 }

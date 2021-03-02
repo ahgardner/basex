@@ -9,7 +9,7 @@ import org.basex.util.*;
 /**
  * XQuery types.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public interface Type {
@@ -150,7 +150,7 @@ public interface Type {
     public static Type getType(final int id) {
       final ID i = get(id);
       if(i == null) return null;
-      if(i == FUN) return SeqType.ANY_FUNC;
+      if(i == FUN) return SeqType.FUNCTION;
       final Type type = AtomType.getType(i);
       return type != null ? type : NodeType.getType(i);
     }
@@ -195,13 +195,14 @@ public interface Type {
    * @return sequence type
    */
   default SeqType seqType() {
-    return seqType(Occ.ONE);
+    return seqType(Occ.EXACTLY_ONE);
   }
 
   /**
-   * Returns a sequence type with the specified occurrence indicator.
+   * Internal function for creating a sequence type with the specified occurrence indicator.
    * @param occ occurrence indicator
    * @return sequence type
+   * @see SeqType#get(Type, Occ)
    */
   SeqType seqType(Occ occ);
 
@@ -279,12 +280,6 @@ public interface Type {
    * @return result of check
    */
   boolean isSortable();
-
-  /**
-   * Returns the string representation of this type.
-   * @return name
-   */
-  byte[] string();
 
   /**
    * Returns the atomic type.

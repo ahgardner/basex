@@ -7,7 +7,6 @@ import static org.basex.util.Token.*;
 import java.lang.reflect.*;
 import java.lang.reflect.Array;
 import java.util.*;
-import java.util.function.*;
 
 import javax.xml.datatype.*;
 import javax.xml.namespace.*;
@@ -35,7 +34,7 @@ import org.w3c.dom.*;
  * This class contains common methods for executing Java code and mapping
  * Java objects to XQuery values.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public abstract class JavaCall extends Arr {
@@ -43,16 +42,21 @@ public abstract class JavaCall extends Arr {
   final StaticContext sc;
   /** Permission. */
   final Perm perm;
+  /** Updating flag. */
+  final boolean updating;
 
   /**
    * Constructor.
    * @param args arguments
    * @param perm required permission to run the function
+   * @param updating updating flag
    * @param sc static context
    * @param info input info
    */
-  JavaCall(final Expr[] args, final Perm perm, final StaticContext sc, final InputInfo info) {
+  JavaCall(final Expr[] args, final Perm perm, final boolean updating, final StaticContext sc,
+      final InputInfo info) {
     super(info, SeqType.ITEM_ZM, args);
+    this.updating = updating;
     this.sc = sc;
     this.perm = perm;
   }
@@ -61,7 +65,13 @@ public abstract class JavaCall extends Arr {
   public final Value value(final QueryContext qc) throws QueryException {
     // check permission
     if(!qc.context.user().has(perm)) throw BASEX_PERMISSION_X_X.get(info, perm, this);
-    return toValue(eval(qc), qc, sc);
+
+    final Value value = toValue(eval(qc), qc, sc);
+    if(!updating) return value;
+
+    // updating function: cache output
+    qc.updates().addOutput(value, qc);
+    return Empty.VALUE;
   }
 
   /**
@@ -71,11 +81,6 @@ public abstract class JavaCall extends Arr {
    * @throws QueryException query exception
    */
   protected abstract Object eval(QueryContext qc) throws QueryException;
-
-  @Override
-  public boolean has(final Flag... flags) {
-    return Flag.NDT.in(flags) || super.has(flags);
-  }
 
   // STATIC METHODS ===============================================================================
 
@@ -130,7 +135,7 @@ public abstract class JavaCall extends Arr {
       final short[] r = (short[]) object;
       final long[] b = new long[r.length];
       for(int v = 0; v < s; v++) b[v] = r[v];
-      return IntSeq.get(b, AtomType.SHR);
+      return IntSeq.get(b, AtomType.SHORT);
     }
     // integer array
     if(object instanceof int[]) {
@@ -181,7 +186,9 @@ public abstract class JavaCall extends Arr {
       final Requires req = meth.getAnnotation(Requires.class);
       final Perm perm = req == null ? Perm.ADMIN :
         Perm.get(req.value().name().toLowerCase(Locale.ENGLISH));
-      return new StaticJavaCall(module, meth, args, perm, sc, ii);
+      final boolean updating = meth.getAnnotation(Updating.class) != null;
+      if(updating) qc.updating();
+      return new StaticJavaCall(module, meth, args, perm, updating, sc, ii);
     }
 
     /* skip Java class lookup if...
@@ -262,17 +269,14 @@ public abstract class JavaCall extends Arr {
     // method found: add module locks to QueryContext
     if(method != null) {
       final Lock lock = method.getAnnotation(Lock.class);
-      if(lock != null) {
-        for(final String read : lock.read()) qc.readLocks.add(Locking.JAVA_PREFIX + read);
-        for(final String write : lock.write()) qc.writeLocks.add(Locking.JAVA_PREFIX + write);
-      }
+      if(lock != null) qc.locks.add(Locking.BASEX_PREFIX + lock.value());
       return method;
     }
 
     // no suitable method found: check if method with correct name was found
-    throw noFunction(name, arity, string(qname.string()), arities, types, ii, list -> {
-      for(final Method m : methods) list.add(m.getName());
-    });
+    final TokenList names = new TokenList();
+    for(final Method m : methods) names.add(m.getName());
+    throw noFunction(name, arity, string(qname.string()), arities, types, ii, names.finish());
   }
 
   /**
@@ -283,33 +287,29 @@ public abstract class JavaCall extends Arr {
    * @param arities arities of found methods
    * @param types types (can be {@code null})
    * @param ii input info
-   * @param consumer list of available names
+   * @param names list of available names
    * @return exception
    */
   static QueryException noFunction(final String name, final int arity, final String full,
-      final IntList arities, final String[] types, final InputInfo ii,
-      final Consumer<TokenList> consumer) {
-
+      final IntList arities, final String[] types, final InputInfo ii, final byte[][] names) {
     // functions with different arities
     if(!arities.isEmpty()) return Functions.wrongArity(full, arity, arities, ii);
 
     // find similar field/method names
-    final byte[] nm = token(name), similar = Levenshtein.similar(nm, consumer);
+    final byte[] nm = token(name);
+    final Object similar = Levenshtein.similar(nm, names);
     if(similar != null) {
       // if name is equal, no function was chosen via exact type matching
-      if(eq(nm, similar)) {
-        final StringBuilder sb = new StringBuilder();
+      if(eq(nm, (byte[]) similar)) {
+        final TokenBuilder tb = new TokenBuilder();
         for(final String type : types) {
-          if(sb.length() != 0) sb.append(", ");
-          sb.append(type.replaceAll("^.*\\.", ""));
+          if(!tb.isEmpty()) tb.add(", ");
+          tb.add(type.replaceAll("^.*\\.", ""));
         }
-        return JAVAARGS_X_X.get(ii, full, sb);
+        return JAVAARGS_X_X.get(ii, full, tb);
       }
-      // show similar field/method name
-      return FUNCSIMILAR_X_X.get(ii, full, similar);
     }
-    // no similar field/method found, show default error
-    return WHICHFUNC_X.get(ii, full);
+    return WHICHFUNC_X.get(ii, similar(full, similar));
   }
 
   /**
@@ -339,32 +339,32 @@ public abstract class JavaCall extends Arr {
     final Type type = JavaMapping.type(object.getClass(), true);
     if(type != null) return type;
 
-    if(object instanceof Element) return NodeType.ELM;
-    if(object instanceof Document) return NodeType.DOC;
-    if(object instanceof DocumentFragment) return NodeType.DOC;
-    if(object instanceof Attr) return NodeType.ATT;
-    if(object instanceof Comment) return NodeType.COM;
-    if(object instanceof ProcessingInstruction) return NodeType.PI;
-    if(object instanceof Text) return NodeType.TXT;
+    if(object instanceof Element) return NodeType.ELEMENT;
+    if(object instanceof Document) return NodeType.DOCUMENT_NODE;
+    if(object instanceof DocumentFragment) return NodeType.DOCUMENT_NODE;
+    if(object instanceof Attr) return NodeType.ATTRIBUTE;
+    if(object instanceof Comment) return NodeType.COMMENT;
+    if(object instanceof ProcessingInstruction) return NodeType.PROCESSING_INSTRUCTION;
+    if(object instanceof Text) return NodeType.TEXT;
 
     if(object instanceof Duration) {
       final Duration d = (Duration) object;
       return !d.isSet(DatatypeConstants.YEARS) && !d.isSet(DatatypeConstants.MONTHS)
-          ? AtomType.DTD : !d.isSet(DatatypeConstants.HOURS) &&
+          ? AtomType.DAY_TIME_DURATION : !d.isSet(DatatypeConstants.HOURS) &&
           !d.isSet(DatatypeConstants.MINUTES) && !d.isSet(DatatypeConstants.SECONDS)
-          ? AtomType.YMD : AtomType.DUR;
+          ? AtomType.YEAR_MONTH_DURATION : AtomType.DURATION;
     }
 
     if(object instanceof XMLGregorianCalendar) {
       final QName qnm = ((XMLGregorianCalendar) object).getXMLSchemaType();
-      if(qnm == DatatypeConstants.DATE) return AtomType.DAT;
-      if(qnm == DatatypeConstants.DATETIME) return AtomType.DTM;
-      if(qnm == DatatypeConstants.TIME) return AtomType.TIM;
-      if(qnm == DatatypeConstants.GYEARMONTH) return AtomType.YMO;
-      if(qnm == DatatypeConstants.GMONTHDAY) return AtomType.MDA;
-      if(qnm == DatatypeConstants.GYEAR) return AtomType.YEA;
-      if(qnm == DatatypeConstants.GMONTH) return AtomType.MON;
-      if(qnm == DatatypeConstants.GDAY) return AtomType.DAY;
+      if(qnm == DatatypeConstants.DATE) return AtomType.DATE;
+      if(qnm == DatatypeConstants.DATETIME) return AtomType.DATE_TIME;
+      if(qnm == DatatypeConstants.TIME) return AtomType.TIME;
+      if(qnm == DatatypeConstants.GYEARMONTH) return AtomType.G_YEAR_MONTH;
+      if(qnm == DatatypeConstants.GMONTHDAY) return AtomType.G_MONTH_DAY;
+      if(qnm == DatatypeConstants.GYEAR) return AtomType.G_YEAR;
+      if(qnm == DatatypeConstants.GMONTH) return AtomType.G_MONTH;
+      if(qnm == DatatypeConstants.GDAY) return AtomType.G_DAY;
     }
     return null;
   }
@@ -392,7 +392,7 @@ public abstract class JavaCall extends Arr {
   }
 
   @Override
-  public final String toString() {
-    return desc() + toString(SEP);
+  public void plan(final QueryString qs) {
+    qs.token(desc()).params(exprs);
   }
 }

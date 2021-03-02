@@ -11,7 +11,7 @@ import org.basex.util.*;
 /**
  * Abstract single expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public abstract class Single extends ParseExpr {
@@ -51,8 +51,8 @@ public abstract class Single extends ParseExpr {
   }
 
   @Override
-  public boolean inlineable(final Var var) {
-    return expr.inlineable(var);
+  public boolean inlineable(final InlineContext ic) {
+    return expr.inlineable(ic);
   }
 
   @Override
@@ -61,12 +61,11 @@ public abstract class Single extends ParseExpr {
   }
 
   @Override
-  public Expr inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-    final Expr inlined = expr.inline(ei, ex, cc);
+  public Expr inline(final InlineContext ic) throws QueryException {
+    final Expr inlined = expr.inline(ic);
     if(inlined == null) return null;
     expr = inlined;
-    return optimize(cc);
+    return optimize(ic.cc);
   }
 
   @Override
@@ -86,17 +85,16 @@ public abstract class Single extends ParseExpr {
    * @return simplified expression
    * @throws QueryException query exception
    */
-  final Expr simplifyCast(final Simplify mode, final CompileContext cc) throws QueryException {
-    if(mode == Simplify.ATOM || mode == Simplify.NUMBER) {
-      final SeqType ast = expr.seqType(), dst = exprType.seqType();
-      if(ast.occ.instanceOf(dst.occ)) {
-        final Type at = ast.type, dt = dst.type;
-        if(mode == Simplify.ATOM && at.isStringOrUntyped() &&
-             dt.oneOf(AtomType.STR, AtomType.ATM) ||
-           mode == Simplify.NUMBER && (at.isUntyped() && dt == AtomType.DBL ||
-             at.instanceOf(AtomType.INT) && at.instanceOf(dt))) {
-          return cc.simplify(this, expr);
-        }
+  final Expr simplifyForCast(final Simplify mode, final CompileContext cc) throws QueryException {
+    final SeqType est = expr.seqType(), dst = seqType();
+    if(est.occ.instanceOf(dst.occ)) {
+      final Type et = est.type, dt = dst.type;
+      if(mode == Simplify.STRING && et.isStringOrUntyped() &&
+           dt.oneOf(AtomType.STRING, AtomType.UNTYPED_ATOMIC) ||
+         mode == Simplify.NUMBER && (et.isUntyped() && dt == AtomType.DOUBLE ||
+           et.instanceOf(AtomType.INT) && et.instanceOf(dt)) ||
+         mode == Simplify.DATA && et instanceof NodeType && dt == AtomType.UNTYPED_ATOMIC) {
+        return cc.simplify(this, expr);
       }
     }
     return super.simplifyFor(mode, cc);

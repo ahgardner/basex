@@ -1,4 +1,3 @@
-
 package org.basex.query.value.seq;
 
 import java.util.*;
@@ -14,7 +13,7 @@ import org.basex.util.list.*;
 /**
  * Sequence of items of type {@link Int xs:integer}, containing at least two of them.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class IntSeq extends NativeSeq {
@@ -56,7 +55,15 @@ public final class IntSeq extends NativeSeq {
   public Expr simplifyFor(final Simplify mode, final CompileContext cc) throws QueryException {
     if(mode == Simplify.DISTINCT) {
       final long[] tmp = new LongList((int) size).add(values).sort().distinct().finish();
-      if(tmp.length != values.length) return cc.replaceWith(this, get(tmp, type));
+      final int tl = tmp.length;
+      if(seqType().type == AtomType.INTEGER) {
+        // try to rewrite to range sequence
+        int t = 0;
+        while(++t < tl && tmp[0] + t == tmp[t]);
+        if(t == tl) return cc.replaceWith(this, RangeSeq.get(tmp[0], tl, true));
+      }
+      // replace with new, sorted (possibly smaller) sequence
+      return cc.replaceWith(this, get(tmp, type));
     }
     return super.simplifyFor(mode, cc);
   }
@@ -64,17 +71,17 @@ public final class IntSeq extends NativeSeq {
   @Override
   public Object toJava() {
     switch((AtomType) type) {
-      case BYT:
+      case BYTE:
         final byte[] t1 = new byte[(int) size];
         for(int s = 0; s < size; s++) t1[s] = (byte) values[s];
         return t1;
-      case SHR:
-      case UBY:
+      case SHORT:
+      case UNSIGNED_BYTE:
         final short[] t2 = new short[(int) size];
         for(int s = 0; s < size; s++) t2[s] = (short) values[s];
         return t2;
       case INT:
-      case USH:
+      case UNSIGNED_SHORT:
         final int[] t3 = new int[(int) size];
         for(int s = 0; s < size; s++) t3[s] = (int) values[s];
         return t3;
@@ -98,8 +105,19 @@ public final class IntSeq extends NativeSeq {
    * @param values values
    * @return value
    */
+  public static Value get(final int[] values) {
+    final LongList list = new LongList(values.length);
+    for(final int value : values) list.add(value);
+    return get(list.finish(), AtomType.INTEGER);
+  }
+
+  /**
+   * Creates an xs:integer sequence with the specified items.
+   * @param values values
+   * @return value
+   */
   public static Value get(final long[] values) {
-    return get(values, AtomType.ITR);
+    return get(values, AtomType.INTEGER);
   }
 
   /**

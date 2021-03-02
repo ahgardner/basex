@@ -1,5 +1,7 @@
 package org.basex.query.expr;
 
+import static org.basex.query.QueryText.*;
+
 import java.util.*;
 
 import org.basex.data.*;
@@ -17,7 +19,7 @@ import org.basex.util.hash.*;
 /**
  * Project specific try/catch expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class Try extends Single {
@@ -82,7 +84,7 @@ public final class Try extends Single {
 
   @Override
   public Data data() {
-    final ExprList list = new ExprList(catches.length).add(expr);
+    final ExprList list = new ExprList(catches.length + 1).add(expr);
     for(final Catch ctch : catches) list.add(ctch);
     return data(list.finish());
   }
@@ -108,11 +110,11 @@ public final class Try extends Single {
   }
 
   @Override
-  public Expr inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
+  public Expr inline(final InlineContext ic) throws QueryException {
     boolean changed = false;
+    final CompileContext cc = ic.cc;
     try {
-      final Expr inlined = expr.inline(ei, ex, cc);
+      final Expr inlined = expr.inline(ic);
       if(inlined != null) {
         if(inlined instanceof Value) return cc.replaceWith(this, inlined);
         expr = inlined;
@@ -123,15 +125,17 @@ public final class Try extends Single {
       for(final Catch ctch : catches) {
         if(ctch.matches(qe)) {
           // found a matching clause, inline variable and error message
-          final Catch ct = ctch.inline(ei, ex, cc);
+          final Catch ct = ctch.inline(ic);
           return cc.replaceWith(this, (ct == null ? ctch : ct).inline(qe, cc));
         }
       }
       throw qe;
     }
 
-    for(final Catch ctch : catches) changed |= ctch.inline(ei, ex, cc) != null;
-    return changed ? this : null;
+    for(final Catch ctch : catches) {
+      changed |= ctch.inline(ic) != null;
+    }
+    return changed ? optimize(ic.cc) : null;
   }
 
   @Override
@@ -158,11 +162,11 @@ public final class Try extends Single {
   }
 
   @Override
-  public boolean inlineable(final Var var) {
+  public boolean inlineable(final InlineContext ic) {
     for(final Catch ctch : catches) {
-      if(!ctch.inlineable(var)) return false;
+      if(!ctch.inlineable(ic)) return false;
     }
-    return super.inlineable(var);
+    return super.inlineable(ic);
   }
 
   @Override
@@ -194,9 +198,7 @@ public final class Try extends Single {
   }
 
   @Override
-  public String toString() {
-    final StringBuilder sb = new StringBuilder("try { " + expr + " }");
-    for(final Catch ctch : catches) sb.append(' ').append(ctch);
-    return sb.toString();
+  public void plan(final QueryString qs) {
+    qs.token(TRY).brace(expr).tokens(catches);
   }
 }

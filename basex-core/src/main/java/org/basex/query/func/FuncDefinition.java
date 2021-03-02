@@ -16,7 +16,7 @@ import org.basex.util.*;
 /**
  * Definition of built-in function.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FuncDefinition {
@@ -27,7 +27,7 @@ public final class FuncDefinition {
   /** Parameter types. */
   final SeqType[] params;
   /** Sequence type. */
-  final SeqType seqType;
+  public final SeqType seqType;
   /** URI. */
   final byte[] uri;
 
@@ -170,10 +170,10 @@ public final class FuncDefinition {
    * <ul>
    * <li>numbers (integer, long, float, double)</li>
    * <li>booleans (which will be suffixed with parentheses)</li>
-   * <li>strings starting with a space</li>
+   * <li>strings starting with a space (which will be chopped)</li>
    * </ul>
    * @param args arguments
-   * @return string representation (prefixed with a space to simplify nesting of returned string)
+   * @return string representation with leading space (simplifies nesting of returned string)
    */
   String args(final Object... args) {
     final TokenBuilder tb = new TokenBuilder();
@@ -214,6 +214,6 @@ public final class FuncDefinition {
 
   @Override
   public String toString() {
-    return Strings.concat(NSGlobal.prefix(uri), ':', desc);
+    return Strings.concat(NSGlobal.prefix(uri), ":", desc);
   }
 }

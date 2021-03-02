@@ -20,7 +20,7 @@ import org.basex.util.*;
 /**
  * The map item.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class XQMap extends XQData {
@@ -37,7 +37,7 @@ public final class XQMap extends XQData {
    * @param root map
    */
   private XQMap(final TrieNode root) {
-    super(SeqType.ANY_MAP);
+    super(SeqType.MAP);
     this.root = root;
   }
 
@@ -123,12 +123,13 @@ public final class XQMap extends XQData {
     if(!(tp instanceof FuncType) || tp instanceof ArrayType) return false;
 
     final FuncType ft = (FuncType) tp;
-    if(ft.argTypes.length != 1 || !ft.argTypes[0].instanceOf(SeqType.AAT_O)) return false;
+    if(ft.argTypes.length != 1 || !ft.argTypes[0].instanceOf(SeqType.ANY_ATOMIC_TYPE_O))
+      return false;
 
     AtomType kt = null;
     if(ft instanceof MapType) {
       kt = ((MapType) ft).keyType();
-      if(kt == AtomType.AAT) kt = null;
+      if(kt == AtomType.ANY_ATOMIC_TYPE) kt = null;
     }
 
     SeqType dt = ft.declType;
@@ -274,11 +275,7 @@ public final class XQMap extends XQData {
   }
 
   @Override
-  public String toString() {
-    final TokenBuilder tb = new TokenBuilder().add(MAP).add(" { ");
-    if(mapSize() > 0) {
-      tb.add(root.append(new StringBuilder()).toString().replaceAll(", $", "")).add(" ");
-    }
-    return tb.add("}").toString();
+  public void plan(final QueryString qs) {
+    qs.token(MAP).brace(root.append(new StringBuilder()).toString().replaceAll(", $", ""));
   }
 }

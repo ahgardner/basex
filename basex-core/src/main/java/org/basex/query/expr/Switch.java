@@ -23,7 +23,7 @@ import org.basex.util.hash.*;
 /**
  * Switch expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class Switch extends ParseExpr {
@@ -49,10 +49,9 @@ public final class Switch extends ParseExpr {
     checkNoUp(cond);
     for(final SwitchGroup group : groups) group.checkUp();
     // check if none or all return expressions are updating
-    final int gl = groups.length;
-    final Expr[] tmp = new Expr[gl];
-    for(int g = 0; g < gl; g++) tmp[g] = groups[g].exprs[0];
-    checkAllUp(tmp);
+    final ExprList rtrns = new ExprList(groups.length);
+    for(final SwitchGroup group : groups) rtrns.add(group.rtrn());
+    checkAllUp(rtrns.finish());
   }
 
   @Override
@@ -64,17 +63,18 @@ public final class Switch extends ParseExpr {
 
   @Override
   public Expr optimize(final CompileContext cc) throws QueryException {
-    cond = cond.simplifyFor(Simplify.ATOM, cc);
+    cond = cond.simplifyFor(Simplify.STRING, cc);
 
     // check if expression can be pre-evaluated
     final Expr expr = opt(cc);
     if(expr != this) return cc.replaceWith(this, expr);
 
     // combine types of return expressions
-    SeqType st = groups[0].exprs[0].seqType();
     final int gl = groups.length;
-    for(int g = 1; g < gl; g++) st = st.union(groups[g].exprs[0].seqType());
+    SeqType st = groups[0].seqType();
+    for(int g = 1; g < gl; g++) st = st.union(groups[g].seqType());
     exprType.assign(st);
+
     return this;
   }
 
@@ -94,29 +94,35 @@ public final class Switch extends ParseExpr {
    * @throws QueryException query exception
    */
   private Expr opt(final CompileContext cc) throws QueryException {
-    // cached switch cases
     final ExprList cases = new ExprList();
-    final Item item = cond instanceof Value ? cond.atomItem(cc.qc, info) : Empty.VALUE;
+    Item cnd = cond instanceof Value ? cond.atomItem(cc.qc, info) : null;
     final ArrayList<SwitchGroup> tmpGroups = new ArrayList<>();
     for(final SwitchGroup group : groups) {
       final int el = group.exprs.length;
-      final Expr rtrn = group.exprs[0];
+      final Expr rtrn = group.rtrn();
       final ExprList list = new ExprList(el).add(rtrn);
       for(int e = 1; e < el; e++) {
         final Expr expr = group.exprs[e];
-        if(cond instanceof Value && expr instanceof Value) {
-          // includes check for empty sequence (null reference)
-          final Item cs = expr.atomItem(cc.qc, info);
-          if(item == cs || cs != Empty.VALUE && item != Empty.VALUE && item.equiv(cs, null, info))
-            return rtrn;
-          cc.info(OPTREMOVE_X_X, expr, (Supplier<?>) this::description);
-        } else if(cases.contains(expr)) {
+        if(cases.contains(expr)) {
           // case has already been checked before
           cc.info(OPTREMOVE_X_X, expr, (Supplier<?>) this::description);
-        } else {
-          cases.add(expr);
-          list.add(expr);
+          continue;
         }
+        if(cnd != null) {
+          // compare condition and value; return result or remove case
+          if(expr instanceof Value) {
+            final Item cs = expr.atomItem(cc.qc, info);
+            if(cnd == cs || cs != Empty.VALUE && cnd != Empty.VALUE && cnd.equiv(cs, null, info)) {
+              return rtrn;
+            }
+            cc.info(OPTREMOVE_X_X, expr, (Supplier<?>) this::description);
+            continue;
+          }
+          // value unknown at compile: perform no further compile-time checks
+          cnd = null;
+        }
+        cases.add(expr);
+        list.add(expr);
       }
       // build list of branches (add those with case left, or the default branch)
       if(list.size() > 1 || el == 1) {
@@ -125,8 +131,23 @@ public final class Switch extends ParseExpr {
       }
     }
 
+    // merge branches with identical return path
+    for(int g = 0; g < tmpGroups.size(); g++) {
+      final SwitchGroup group1 = g > 0 ? tmpGroups.get(g - 1) : null, group2 = tmpGroups.get(g);
+      if(g > 0 && group1.rtrn().equals(group2.rtrn())) {
+        if(g + 1 == tmpGroups.size() && !group1.has(Flag.NDT)) {
+          tmpGroups.set(g - 1, group2);
+        } else {
+          final ExprList list = new ExprList(group1.exprs.length + group2.exprs.length - 1);
+          list.add(group1.exprs).add(Arrays.copyOfRange(group2.exprs, 1, group2.exprs.length));
+          tmpGroups.set(g - 1, new SwitchGroup(group1.info, list.finish()).optimize(cc));
+        }
+        tmpGroups.remove(g--);
+      }
+    }
+
+    // update branches
     if(tmpGroups.size() != groups.length) {
-      // branches have changed
       groups = tmpGroups.toArray(new SwitchGroup[0]);
       cc.info(OPTSIMPLE_X_X, (Supplier<?>) this::description, this);
     }
@@ -141,9 +162,10 @@ public final class Switch extends ParseExpr {
    * @return new or original expression
    */
   private Expr simplify() {
-    final Expr expr = groups[0].exprs[0];
+    // only the default branch may be left at this stage
+    final Expr expr = groups[0].rtrn();
     for(int g = groups.length - 1; g >= 1; g--) {
-      if(!expr.equals(groups[g].exprs[0])) return this;
+      if(!expr.equals(groups[g].rtrn())) return this;
     }
     return expr;
   }
@@ -158,7 +180,7 @@ public final class Switch extends ParseExpr {
     if(groups.length != 2) return this;
 
     final SeqType st = cond.seqType();
-    final boolean string = st.type.isStringOrUntyped(), dec = st.type.instanceOf(AtomType.DEC);
+    final boolean string = st.type.isStringOrUntyped(), dec = st.type.instanceOf(AtomType.DECIMAL);
     if(!st.one() || !(string || dec)) return this;
 
     final Expr[] exprs = groups[0].exprs;
@@ -166,13 +188,13 @@ public final class Switch extends ParseExpr {
       final SeqType mt = exprs[e].seqType();
       if(!mt.one() || !(
         string && mt.type.isStringOrUntyped() ||
-        dec && mt.type.instanceOf(AtomType.DEC)
+        dec && mt.type.instanceOf(AtomType.DECIMAL)
       )) return this;
     }
 
-    final List list = new List(groups[0].info, Arrays.copyOfRange(exprs, 1, exprs.length));
-    final CmpG cmp = new CmpG(cond, list.optimize(cc), OpG.EQ, null, null, groups[0].info);
-    return new If(info, cmp.optimize(cc), groups[0].exprs[0], groups[1].exprs[0]).optimize(cc);
+    final Expr list = List.get(cc, groups[0].info, Arrays.copyOfRange(exprs, 1, exprs.length));
+    final CmpG cmp = new CmpG(cond, list, OpG.EQ, null, null, groups[0].info);
+    return new If(info, cmp.optimize(cc), groups[0].rtrn(), groups[1].rtrn()).optimize(cc);
   }
 
   @Override
@@ -199,9 +221,19 @@ public final class Switch extends ParseExpr {
   private Expr expr(final QueryContext qc) throws QueryException {
     final Item item = cond.atomItem(qc, info);
     for(final SwitchGroup group : groups) {
-      if(group.match(item, qc)) return group.exprs[0];
+      if(group.match(item, qc)) return group.rtrn();
     }
     throw Util.notExpected();
+  }
+
+  @Override
+  public boolean vacuous() {
+    return ((Checks<SwitchGroup>) group -> group.rtrn().vacuous()).all(groups);
+  }
+
+  @Override
+  public boolean ddo() {
+    return ((Checks<SwitchGroup>) group -> group.rtrn().ddo()).all(groups);
   }
 
   @Override
@@ -213,48 +245,46 @@ public final class Switch extends ParseExpr {
   }
 
   @Override
-  public boolean inlineable(final Var var) {
+  public boolean inlineable(final InlineContext ic) {
     for(final SwitchGroup group : groups) {
-      if(!group.inlineable(var)) return false;
+      if(!group.inlineable(ic)) return false;
     }
-    return cond.inlineable(var);
+    return cond.inlineable(ic);
   }
 
   @Override
   public VarUsage count(final Var var) {
-    VarUsage max = VarUsage.NEVER, curr = VarUsage.NEVER;
+    VarUsage max = VarUsage.NEVER, uses = VarUsage.NEVER;
     for(final SwitchGroup cs : groups) {
-      curr = curr.plus(cs.countCases(var));
-      max = max.max(curr.plus(cs.count(var)));
+      uses = uses.plus(cs.countCases(var));
+      max = max.max(uses.plus(cs.count(var)));
     }
     return max.plus(cond.count(var));
   }
 
   @Override
-  public Expr inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-    boolean changed = inlineAll(ei, ex, groups, cc);
-    final Expr inlined = cond.inline(ei, ex, cc);
+  public Expr inline(final InlineContext ic) throws QueryException {
+    boolean changed = ic.inline(groups, true);
+    final Expr inlined = cond.inline(ic);
     if(inlined != null) {
       changed = true;
       cond = inlined;
     }
-    return changed ? optimize(cc) : null;
+    return changed ? optimize(ic.cc) : null;
+  }
+
+  @Override
+  public Expr typeCheck(final TypeCheck tc, final CompileContext cc) throws QueryException {
+    boolean changed = false;
+    for(final SwitchGroup group : groups) {
+      changed = group.typeCheck(tc, cc) != null;
+    }
+    return changed ? optimize(cc) : this;
   }
 
   @Override
   public Expr copy(final CompileContext cc, final IntObjMap<Var> vm) {
     return copyType(new Switch(info, cond.copy(cc, vm), Arr.copyAll(cc, vm, groups)));
-  }
-
-  @Override
-  public boolean vacuous() {
-    return ((Checks<SwitchGroup>) group -> group.exprs[0].vacuous()).all(groups);
-  }
-
-  @Override
-  public boolean ddo() {
-    return ((Checks<SwitchGroup>) group -> group.exprs[0].ddo()).all(groups);
   }
 
   @Override
@@ -265,7 +295,7 @@ public final class Switch extends ParseExpr {
   @Override
   public Data data() {
     final ExprList list = new ExprList(groups.length);
-    for(final SwitchGroup group : groups) list.add(group.exprs[0]);
+    for(final SwitchGroup group : groups) list.add(group.rtrn());
     return data(list.finish());
   }
 
@@ -295,9 +325,7 @@ public final class Switch extends ParseExpr {
   }
 
   @Override
-  public String toString() {
-    final StringBuilder sb = new StringBuilder(SWITCH + PAREN1 + cond + PAREN2);
-    for(final SwitchGroup group : groups) sb.append(group);
-    return sb.toString();
+  public void plan(final QueryString qs) {
+    qs.token(SWITCH).paren(cond).tokens(groups);
   }
 }

@@ -6,7 +6,6 @@ import static org.basex.query.QueryText.*;
 import org.basex.query.*;
 import org.basex.query.CompileContext.*;
 import org.basex.query.value.*;
-import org.basex.query.value.item.*;
 import org.basex.query.value.type.*;
 import org.basex.query.var.*;
 import org.basex.util.*;
@@ -15,14 +14,14 @@ import org.basex.util.hash.*;
 /**
  * Cast expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class Cast extends Single {
   /** Static context. */
   private final StaticContext sc;
   /** Sequence type to cast to. */
-  private final SeqType seqType;
+  final SeqType seqType;
 
   /**
    * Function constructor.
@@ -45,46 +44,55 @@ public final class Cast extends Single {
 
   @Override
   public Expr optimize(final CompileContext cc) throws QueryException {
-    expr = expr.simplifyFor(Simplify.ATOM, cc);
+    expr = expr.simplifyFor(Simplify.STRING, cc);
 
-    // pre-evaluate value argument
-    if(expr instanceof Value) return cc.preEval(this);
-
-    // assign target type
-    final SeqType ast = expr.seqType();
+    // target type
+    final SeqType est = expr.seqType();
     Type dt = seqType.type;
+    Occ o = seqType.occ;
     if(dt instanceof ListType) {
       dt = dt.atomic();
-      exprType.assign(dt);
-    } else {
-      Occ occ = seqType.occ;
-      if(occ == Occ.ZERO_ONE && ast.oneOrMore() && !ast.mayBeArray()) occ = Occ.ONE;
-      exprType.assign(dt, occ);
+      o = Occ.ZERO_OR_MORE;
+    } else if(o == Occ.ZERO_OR_ONE && est.oneOrMore() && !est.mayBeArray()) {
+      o = Occ.EXACTLY_ONE;
     }
+    exprType.assign(dt, o);
 
-    // skip cast if input and target types are equal
-    // ('a' cast as xs:string)  ->  'a'
-    // xs:string(''[. = <_/>])  ->  ''[. = <_/>]
-    final SeqType dst = exprType.seqType();
-    return ast.occ.instanceOf(dst.occ) && ast.type.eq(dt) ? cc.replaceWith(this, expr) : this;
+    if(!est.mayBeArray()) {
+      final long es = expr.size();
+      if(es != -1 && (es < o.min || es > o.max)) throw error(expr);
+
+      final Type et = est.type;
+      if(et.instanceOf(dt)) {
+        if(est.occ.instanceOf(o) && (et.eq(dt) || dt == AtomType.NUMERIC))
+          return cc.replaceWith(this, expr);
+      }
+    }
+    return expr instanceof Value ? cc.preEval(this) : this;
   }
 
   @Override
   public Value value(final QueryContext qc) throws QueryException {
-    final Value value = expr.atomValue(qc, info);
-    final long size = value.size();
-    if(!seqType.occ.check(size)) throw INVTYPE_X_X_X.get(info, value.seqType(), seqType, value);
-    return size == 1 ? seqType.cast((Item) value, true, qc, sc, info) : value;
+    return seqType.cast(expr.atomValue(qc, info), true, qc, sc, info);
+  }
+
+  /**
+   * Throws a type error.
+   * @param ex expression that triggers the error
+   * @return query exception
+   */
+  private QueryException error(final Expr ex) {
+    return INVTYPE_X_X_X.get(info, ex.seqType(), seqType, ex);
   }
 
   @Override
   public Expr simplifyFor(final Simplify mode, final CompileContext cc) throws QueryException {
-    return simplifyCast(mode, cc);
+    return simplifyForCast(mode, cc);
   }
 
   @Override
-  public Cast copy(final CompileContext cc, final IntObjMap<Var> vs) {
-    return copyType(new Cast(sc, info, expr.copy(cc, vs), seqType));
+  public Expr copy(final CompileContext cc, final IntObjMap<Var> vm) {
+    return copyType(new Cast(sc, info, expr.copy(cc, vm), seqType));
   }
 
   @Override
@@ -99,7 +107,11 @@ public final class Cast extends Single {
   }
 
   @Override
-  public String toString() {
-    return expr + " " + CAST + ' ' + AS + ' ' + seqType;
+  public void plan(final QueryString qs) {
+    if(seqType.one()) {
+      qs.token("(").token(expr).token(CAST).token(AS).token(seqType).token(')');
+    } else {
+      qs.token(seqType.type).paren(expr);
+    }
   }
 }

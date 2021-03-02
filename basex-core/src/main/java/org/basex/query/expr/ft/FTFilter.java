@@ -11,7 +11,7 @@ import org.basex.util.ft.*;
 /**
  * Abstract FTFilter expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public abstract class FTFilter extends FTExpr {
@@ -118,10 +118,5 @@ public abstract class FTFilter extends FTExpr {
   @Override
   public boolean equals(final Object obj) {
     return obj instanceof FTFilter && unit == ((FTFilter) obj).unit && super.equals(obj);
-  }
-
-  @Override
-  public String toString() {
-    return exprs[0] + " ";
   }
 }

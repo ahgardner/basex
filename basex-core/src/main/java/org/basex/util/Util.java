@@ -5,7 +5,8 @@ import static org.basex.core.Text.*;
 import java.io.*;
 import java.net.*;
 import java.util.*;
-import java.util.function.*;
+
+import javax.net.ssl.*;
 
 import org.basex.io.*;
 import org.basex.query.*;
@@ -16,7 +17,7 @@ import org.basex.util.list.*;
  * The methods are used for dumping error output, debugging information,
  * getting the application path, etc.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class Util {
@@ -33,8 +34,8 @@ public final class Util {
    */
   public static String bug(final Throwable throwable) {
     final TokenBuilder tb = new TokenBuilder().add(S_BUGINFO);
-    tb.add(NL).add("Contact: ").add(Prop.MAILING_LIST);
-    tb.add(NL).add("Version: ").add(Prop.TITLE);
+    tb.add(NL).add("Contact: ").add(MAILING_LIST);
+    tb.add(NL).add("Version: ").add(TITLE);
     tb.add(NL).add("Java: ").add(System.getProperty("java.vendor"));
     tb.add(", ").add(System.getProperty("java.version"));
     tb.add(NL).add("OS: ").add(System.getProperty("os.name"));
@@ -78,15 +79,6 @@ public final class Util {
    */
   public static String className(final Class<?> clazz) {
     return clazz.getSimpleName();
-  }
-
-  /**
-   * Returns the name of the class that is created by the supplier, excluding its path.
-   * @param supplier instance supplier
-   * @return class name
-   */
-  public static String className(final Supplier<?> supplier) {
-    return supplier.get().getClass().getSimpleName();
   }
 
   /**
@@ -179,11 +171,18 @@ public final class Util {
     if(throwable instanceof ConnectException) return CONNECTION_ERROR;
     if(throwable instanceof SocketTimeoutException) return TIMEOUT_EXCEEDED;
     if(throwable instanceof SocketException) return CONNECTION_ERROR;
+
     String msg = throwable.getMessage();
     if(msg == null || msg.isEmpty() || throwable instanceof RuntimeException)
       msg = throwable.toString();
     if(throwable instanceof FileNotFoundException) return info(RES_NOT_FOUND_X, msg);
     if(throwable instanceof UnknownHostException) return info(UNKNOWN_HOST_X, msg);
+    if(throwable instanceof SSLException) return "SSL: " + msg;
+
+    // chop long error messages. // example: doc("http://google.com/sdffds")
+    if(throwable.getClass() == IOException.class && msg.length() > 200) {
+      msg = msg.substring(0, 200) + DOTS;
+    }
     return msg;
   }
 

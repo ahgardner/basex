@@ -15,7 +15,7 @@ import org.basex.util.hash.*;
 /**
  * Reference to a static variable.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 final class StaticVarRef extends ParseExpr {
@@ -77,7 +77,7 @@ final class StaticVarRef extends ParseExpr {
   public Expr copy(final CompileContext cc, final IntObjMap<Var> vm) {
     final StaticVarRef ref = new StaticVarRef(info, name, sc);
     ref.var = var;
-    return ref;
+    return copyType(ref);
   }
 
   @Override
@@ -87,7 +87,7 @@ final class StaticVarRef extends ParseExpr {
   }
 
   @Override
-  public boolean inlineable(final Var v) {
+  public boolean inlineable(final InlineContext v) {
     return true;
   }
 
@@ -97,7 +97,7 @@ final class StaticVarRef extends ParseExpr {
   }
 
   @Override
-  public Expr inline(final ExprInfo ei, final Expr ex, final CompileContext cc) {
+  public Expr inline(final InlineContext ic) {
     return null;
   }
 
@@ -126,7 +126,7 @@ final class StaticVarRef extends ParseExpr {
   }
 
   @Override
-  public String toString() {
-    return Strings.concat('$', name.string());
+  public void plan(final QueryString qs) {
+    qs.concat("$", name.string());
   }
 }

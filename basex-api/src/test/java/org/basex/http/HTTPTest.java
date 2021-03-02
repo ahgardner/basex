@@ -23,7 +23,7 @@ import org.junit.jupiter.api.*;
 /**
  * This class contains common methods for the HTTP services.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public abstract class HTTPTest extends SandboxTest {
@@ -66,10 +66,10 @@ public abstract class HTTPTest extends SandboxTest {
   }
 
   /**
-   * Finish test.
-   * @throws Exception exception
+   * Finishes the test.
+   * @throws IOException I/O exception
    */
-  @AfterAll public static void stop() throws Exception {
+  @AfterAll public static void stop() throws IOException {
     http.stop();
 
     // cleanup: remove project specific system properties

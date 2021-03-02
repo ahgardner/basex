@@ -17,7 +17,7 @@ import org.basex.util.list.*;
 /**
  * Sequence, containing at least two items.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public abstract class Seq extends Value {
@@ -51,7 +51,7 @@ public abstract class Seq extends Value {
     if(tp != null) {
       type = tp;
       // shortcut for strings (avoid intermediate token representation)
-      if(tp == AtomType.STR) {
+      if(tp == AtomType.STRING) {
         final StringList tmp = new StringList(initialCapacity(size));
         for(final Item item : this) tmp.add(item.string(null));
         return tmp.finish();
@@ -204,7 +204,7 @@ public abstract class Seq extends Value {
 
   @Override
   public final SeqType seqType() {
-    return SeqType.get(type, Occ.ONE_MORE);
+    return SeqType.get(type, Occ.ONE_OR_MORE);
   }
 
   @Override
@@ -235,32 +235,30 @@ public abstract class Seq extends Value {
 
   @Override
   public final String toErrorString() {
-    return toString(true);
+    return build(true).toString();
   }
 
   @Override
-  public String toString() {
-    return toString(false);
+  public void plan(final QueryString qs) {
+    qs.token(build(false).finish());
   }
 
   /**
    * Returns a string representation of the sequence.
    * @param error error flag
-   * @return string
+   * @return token builder
    */
-  private String toString(final boolean error) {
-    final TokenBuilder tb = new TokenBuilder().add(PAREN1);
+  private TokenBuilder build(final boolean error) {
+    final TokenBuilder tb = new TokenBuilder().add('(');
     for(int i = 0; i < size; ++i) {
       if(i > 0) tb.add(SEP);
-      final Item item = itemAt(i);
-      tb.add(error ? item.toErrorString() : item.toString());
-      if(i + 1 < size && tb.size() > 40) {
-        // chop too long strings
-        tb.add(SEP).add(DOTS);
-        break;
-      }
+      tb.add(error ? itemAt(i).toErrorString() : itemAt(i).toString());
+      if(tb.size() <= 40 || i + 1 == size) continue;
+      // chop output to prevent too long error strings
+      tb.add(SEP).add(DOTS);
+      break;
     }
-    return tb.add(PAREN2).toString();
+    return tb.add(')');
   }
 
   // STATIC METHODS ===============================================================================
@@ -276,13 +274,13 @@ public abstract class Seq extends Value {
   public static Value get(final int size, final Type type, final Value... values)
       throws QueryException {
 
-    if(type == AtomType.STR) return StrSeq.get(size, values);
-    if(type == AtomType.BLN) return BlnSeq.get(size, values);
-    if(type == AtomType.FLT) return FltSeq.get(size, values);
-    if(type == AtomType.DBL) return DblSeq.get(size, values);
-    if(type == AtomType.DEC) return DecSeq.get(size, values);
-    if(type == AtomType.BYT) return BytSeq.get(size, values);
-    if(type != null && type.instanceOf(AtomType.ITR)) return IntSeq.get(type, size, values);
+    if(type == AtomType.STRING) return StrSeq.get(size, values);
+    if(type == AtomType.BOOLEAN) return BlnSeq.get(size, values);
+    if(type == AtomType.FLOAT) return FltSeq.get(size, values);
+    if(type == AtomType.DOUBLE) return DblSeq.get(size, values);
+    if(type == AtomType.DECIMAL) return DecSeq.get(size, values);
+    if(type == AtomType.BYTE) return BytSeq.get(size, values);
+    if(type != null && type.instanceOf(AtomType.INTEGER)) return IntSeq.get(type, size, values);
     return null;
   }
 
@@ -294,7 +292,7 @@ public abstract class Seq extends Value {
    * @throws QueryException query exception
    */
   public static int initialCapacity(final long size) throws QueryException {
-    if(size > Array.MAX_SIZE) throw RANGE_X.get(null, size);
+    if(size > Array.MAX_SIZE) throw ARRAY_X_X.get(null, Array.MAX_SIZE, size);
     return Array.initialCapacity(size);
   }
 }

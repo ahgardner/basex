@@ -10,7 +10,7 @@ import org.basex.query.value.item.*;
 /**
  * This class serializes items as XHTML.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 final class XHTMLSerializer extends MarkupSerializer {
@@ -37,7 +37,7 @@ final class XHTMLSerializer extends MarkupSerializer {
   @Override
   protected void startOpen(final QNm value) throws IOException {
     super.startOpen(value);
-    if(content && eq(lc(elem.local()), HEAD)) ct++;
+    if(content && eq(lc(elem.local()), HEAD)) skip++;
   }
 
   @Override

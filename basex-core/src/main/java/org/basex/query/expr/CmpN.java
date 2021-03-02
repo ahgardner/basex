@@ -15,7 +15,7 @@ import org.basex.util.hash.*;
 /**
  * Node comparison.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class CmpN extends Cmp {
@@ -27,8 +27,6 @@ public final class CmpN extends Cmp {
       public boolean eval(final ANode node1, final ANode node2) {
         return node1.is(node2);
       }
-      @Override
-      public OpN invert() { return null; }
     },
 
     /** Node comparison: before. */
@@ -37,8 +35,6 @@ public final class CmpN extends Cmp {
       public boolean eval(final ANode node1, final ANode node2) {
         return node1.diff(node2) < 0;
       }
-      @Override
-      public OpN invert() { return GT; }
     },
 
     /** Node comparison: after. */
@@ -47,8 +43,6 @@ public final class CmpN extends Cmp {
       public boolean eval(final ANode node1, final ANode node2) {
         return node1.diff(node2) > 0;
       }
-      @Override
-      public OpN invert() { return ET; }
     };
 
     /** Cached enums (faster). */
@@ -72,12 +66,6 @@ public final class CmpN extends Cmp {
      */
     public abstract boolean eval(ANode node1, ANode node2);
 
-    /**
-     * Inverts the comparator.
-     * @return inverted comparator or {@code null}
-     */
-    public abstract OpN invert();
-
     @Override
     public String toString() {
       return name;
@@ -95,7 +83,7 @@ public final class CmpN extends Cmp {
    * @param info input info
    */
   public CmpN(final Expr expr1, final Expr expr2, final OpN op, final InputInfo info) {
-    super(info, expr1, expr2, null, SeqType.BLN_ZO, null);
+    super(info, expr1, expr2, null, SeqType.BOOLEAN_ZO, null);
     this.op = op;
   }
 
@@ -103,11 +91,10 @@ public final class CmpN extends Cmp {
   public Expr optimize(final CompileContext cc) throws QueryException {
     final Expr expr1 = exprs[0], expr2 = exprs[1];
     final SeqType st1 = expr1.seqType(), st2 = expr2.seqType();
-    if(st1.oneOrMore() && st2.oneOrMore()) exprType.assign(Occ.ONE);
+    if(st1.oneOrMore() && st2.oneOrMore()) exprType.assign(Occ.EXACTLY_ONE);
 
-    Expr expr = emptyExpr();
-    if(expr == this && allAreValues(false)) expr = value(cc.qc);
-    return cc.replaceWith(this, expr);
+    final Expr expr = emptyExpr();
+    return expr == this && allAreValues(false) ? cc.preEval(this) : cc.replaceWith(this, expr);
   }
 
   @Override
@@ -120,11 +107,8 @@ public final class CmpN extends Cmp {
   }
 
   @Override
-  public Expr invert(final CompileContext cc) throws QueryException {
-    final OpN opN = op.invert();
-    final Expr expr1 = exprs[0], expr2 = exprs[1];
-    return opN != null && expr1.seqType().oneOrMore() && expr2.seqType().oneOrMore() ?
-      new CmpN(expr1, expr2, opN, info).optimize(cc) : this;
+  public Expr invert() {
+    return null;
   }
 
   @Override
@@ -153,7 +137,7 @@ public final class CmpN extends Cmp {
   }
 
   @Override
-  public String toString() {
-    return toString(" " + op + ' ');
+  public void plan(final QueryString qs) {
+    qs.tokens(exprs, " " + op + ' ', true);
   }
 }

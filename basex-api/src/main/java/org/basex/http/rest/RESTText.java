@@ -7,12 +7,12 @@ import org.basex.util.*;
 /**
  * This class assembles texts which are used in the HTTP classes.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 interface RESTText {
   /** REST URI. */
-  byte[] REST_URI = Token.concat(Prop.URL, '/', QueryText.REST_PREFIX);
+  byte[] REST_URI = Token.concat(QueryText.BASEX_URI, "/", QueryText.REST_PREFIX);
 
   /** Name. */
   QNm Q_DATABASES = new QNm(QueryText.REST_PREFIX, "databases", REST_URI);

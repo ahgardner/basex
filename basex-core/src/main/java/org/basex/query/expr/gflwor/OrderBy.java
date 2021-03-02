@@ -2,6 +2,7 @@ package org.basex.query.expr.gflwor;
 
 import static org.basex.query.QueryError.*;
 import static org.basex.query.QueryText.*;
+import static org.basex.query.func.Function.*;
 
 import java.util.*;
 import java.util.List;
@@ -20,14 +21,14 @@ import org.basex.util.hash.*;
 /**
  * FLWOR {@code order by}-expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class OrderBy extends Clause {
   /** References to the variables to be sorted. */
-  private VarRef[] refs;
+  VarRef[] refs;
   /** Sort keys. */
-  private final OrderKey[] keys;
+  final OrderKey[] keys;
 
   /**
    * Constructor.
@@ -122,6 +123,30 @@ public final class OrderBy extends Clause {
     };
   }
 
+  /**
+   * Merges the order by clause with the supplied for clause.
+   * @param fr for clause
+   * @param cc compilation context
+   * @return success flag
+   * @throws QueryException query exception
+   */
+  boolean merge(final For fr, final CompileContext cc) throws QueryException {
+    if(keys.length == 1 && keys[0].coll == null && keys[0].least) {
+      final Expr expr = keys[0].expr;
+      // do not rewrite array keys (as they may contain sequences)
+      if(expr.seqType().mayBeArray()) return false;
+      // for $i in 1 to 2 order by 1 return $i  ->  for $i in 1 to 2 return $i
+      if(expr instanceof Item) return true;
+      // for $i in 1 to 2 order by $i return $i  ->  for $i in sort(1 to 2) return $i
+      if(fr != null && expr instanceof VarRef && ((VarRef) expr).var.is(fr.var)) {
+        fr.expr = cc.function(SORT, info, fr.expr);
+        if(keys[0].desc) fr.expr = cc.function(REVERSE, info, fr.expr);
+        return true;
+      }
+    }
+    return false;
+  }
+
   @Override
   public boolean has(final Flag... flags) {
     for(final OrderKey key : keys) {
@@ -142,9 +167,9 @@ public final class OrderBy extends Clause {
   }
 
   @Override
-  public boolean inlineable(final Var var) {
+  public boolean inlineable(final InlineContext ic) {
     for(final OrderKey key : keys) {
-      if(!key.inlineable(var)) return false;
+      if(!key.inlineable(ic)) return false;
     }
     return true;
   }
@@ -155,15 +180,13 @@ public final class OrderBy extends Clause {
   }
 
   @Override
-  public Clause inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-    if(ei instanceof Var) {
-      final Var var = (Var) ei;
+  public Clause inline(final InlineContext ic) throws QueryException {
+    if(ic.var != null) {
       for(int r = refs.length; --r >= 0;) {
-        if(var.is(refs[r].var)) refs = Array.remove(refs, r);
+        if(refs[r].var.is(ic.var)) refs = Array.remove(refs, r);
       }
     }
-    return inlineAll(ei, ex, keys, cc) ? optimize(cc) : null;
+    return ic.inline(keys) ? optimize(ic.cc) : null;
   }
 
   @Override
@@ -227,10 +250,7 @@ public final class OrderBy extends Clause {
   }
 
   @Override
-  public String toString() {
-    final StringBuilder sb = new StringBuilder(ORDER).append(' ').append(BY);
-    final int kl = keys.length;
-    for(int k = 0; k < kl; k++) sb.append(k == 0 ? " " : SEP).append(keys[k]);
-    return sb.toString();
+  public void plan(final QueryString qs) {
+    qs.token(ORDER).token(BY).tokens(keys, SEP);
   }
 }

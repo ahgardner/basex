@@ -13,7 +13,7 @@ import org.junit.jupiter.api.*;
 /**
  * Tests for inlining.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class InlineTest extends QueryPlanTest {
@@ -22,8 +22,7 @@ public final class InlineTest extends QueryPlanTest {
     check("let $x := 21 return $x + 21", 42, empty(GFLWOR.class));
     check("let $x := 21 return 21 + $x", 42, empty(GFLWOR.class));
     check("let $x := 21 return $x + $x", 42, empty(GFLWOR.class));
-
-    check("let $x := <x>21</x> return $x + 21", 42, exists(GFLWOR.class));
+    check("let $x := <x>21</x> return $x + 21", 42, empty(GFLWOR.class));
   }
 
   /** Tests if variable uses in {@link Switch} are counted correctly. */
@@ -36,18 +35,19 @@ public final class InlineTest extends QueryPlanTest {
         " default return 1337", "<x/>", empty(GFLWOR.class));
   }
 
-  /** Regression test for Issue GH-738, "switch with contains". */
+  /** Switch with contains. */
   @Test public void gh738() {
     check("let $item := <item>blah blah</item> " +
-        "let $type := switch (fn:true())" +
-        "  case $item contains text \"blah\" return <type>a</type>" +
-        "  default return ()" +
+        "let $type := switch (fn:true()) " +
+        "  case ($item contains text 'blah') return <type>a</type> " +
+        "  default return () " +
         "return $type",
         "<type>a</type>",
-        count(Let.class, 1));
+        empty(Let.class),
+        root(ItemMap.class));
   }
 
-  /** Regression test for Issue GH-849, "Typing and Function items: XPTY0004". */
+  /** Typing and Function items: XPTY0004. */
   @Test public void gh849() {
     check("let $f := function($s as xs:string) { $s }" +
         "return $f(let $x := <x>1</x> return if($x = 1.1) then () else 'x')",
@@ -136,7 +136,9 @@ public final class InlineTest extends QueryPlanTest {
   /** Ensures that non-deterministic clauses are not reordered. */
   @Test public void ndtFuncTest() {
     check("let $a := function($d) { trace($d) }"
-        + "let $b := $a(1) let $c := $a(1) return $b", 1, exists(VarRef.class));
+        + "let $b := $a('1st') let $c := $a('2nd') return $b", "1st",
+        root(ItemMap.class),
+        "//FnTrace[. = '1st'] << //FnTrace[. = '2nd']");
   }
 
   /** Checks that window clauses are recognized as loops. */
@@ -161,6 +163,7 @@ public final class InlineTest extends QueryPlanTest {
         "ok",
         exists(DynFuncCall.class),
         empty(StaticFunc.class),
-        exists("DynFuncCall/GFLWOR/Closure"));
+        empty(Closure.class),
+        root(ItemMap.class));
   }
 }

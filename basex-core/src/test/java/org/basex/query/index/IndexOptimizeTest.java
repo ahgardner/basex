@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 /**
  * This class tests if queries are rewritten for index access.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class IndexOptimizeTest extends QueryPlanTest {
@@ -109,6 +109,7 @@ public final class IndexOptimizeTest extends QueryPlanTest {
     createDoc();
     execute(new Open(NAME));
     indexCheck("data(//*[tokenize(@idref) = 'id1'])", 1);
+    indexCheck("data(//*[tokenize(@idref, '\\s+') = 'id1'])", 1);
     indexCheck("data(//@*[tokenize(.) = 'id1'])", "id1 id2");
     indexCheck("for $s in ('id2', 'id3') return data(//*[tokenize(@idref) = $s])", 1);
     indexCheck("for $s in ('id2', 'id3') return data(//@*[tokenize(.) = $s])", "id1 id2");
@@ -167,7 +168,6 @@ public final class IndexOptimizeTest extends QueryPlanTest {
   @Test public void gh1553() {
     createColl();
 
-    // optimization in functions. GH-1553
     indexCheck("declare function db:a() { " + _DB_OPEN.args(NAME) + "//a[text() = '1'] }; "
         + "db:a()", "<a>1</a>");
     indexCheck("declare function db:b() { collection('" + NAME + "')//text()[. = '1'] }; "
@@ -257,7 +257,9 @@ public final class IndexOptimizeTest extends QueryPlanTest {
     indexCheck(pragma + db + "//a[text() = '1']/text() }", 1);
     indexCheck(pragma + db + "//a/text()[. = '1'] }", 1);
     indexCheck(pragma + db + "/*/@*[. = <_/> ] }", "");
-    indexCheck(db + "/*/@*[" + pragma + ". = <_/> }]", "");
+
+    // no index access (root may not yield all documents of a database)
+    check(db + "/*/@*[" + pragma + ". = <_/> }]", "", empty(ValueAccess.class));
   }
 
   /** Optimizations of predicates that are changed by optimizations. */
@@ -272,6 +274,17 @@ public final class IndexOptimizeTest extends QueryPlanTest {
     execute(new CreateDB(NAME, "<x a='A'/>"));
     check("(# db:enforceindex #) { <_>" + NAME + "</_> ! db:open(.)//*[comment() = 'A'] }", "",
         empty(ValueAccess.class));
+  }
+
+  /** Index access, unfiltered document test. */
+  @Test public void gh1948() {
+    final String doc = "<a b=\"c\"/>";
+    execute(new CreateDB(NAME));
+    execute(new Add("a/doc.xml", doc));
+    execute(new Add("b/doc.xml", doc));
+    execute(new Optimize());
+    execute(new Close());
+    indexCheck("let $db := db:open('" + NAME + "', 'a') return $db/a[@b = 'c']", doc);
   }
 
   /**

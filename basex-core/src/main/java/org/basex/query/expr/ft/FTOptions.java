@@ -12,7 +12,7 @@ import org.basex.util.hash.*;
 /**
  * FTOptions expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FTOptions extends FTExpr {
@@ -58,7 +58,7 @@ public final class FTOptions extends FTExpr {
 
   @Override
   public FTExpr copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new FTOptions(info, exprs[0].copy(cc, vm), new FTOpt().assign(opt));
+    return copyType(new FTOptions(info, exprs[0].copy(cc, vm), new FTOpt().assign(opt)));
   }
 
   @Override
@@ -73,7 +73,7 @@ public final class FTOptions extends FTExpr {
   }
 
   @Override
-  public String toString() {
-    return exprs[0].toString() + opt;
+  public void plan(final QueryString qs) {
+    qs.token(exprs[0]).token(opt);
   }
 }

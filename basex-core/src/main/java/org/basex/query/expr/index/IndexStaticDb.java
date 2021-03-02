@@ -4,7 +4,6 @@ import org.basex.data.*;
 import org.basex.query.*;
 import org.basex.query.expr.*;
 import org.basex.query.util.*;
-import org.basex.query.value.item.*;
 import org.basex.query.var.*;
 import org.basex.util.*;
 import org.basex.util.hash.*;
@@ -12,7 +11,7 @@ import org.basex.util.hash.*;
 /**
  * This class defines a static database source for index operations.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class IndexStaticDb extends IndexDb {
@@ -44,7 +43,7 @@ public final class IndexStaticDb extends IndexDb {
   }
 
   @Override
-  public boolean inlineable(final Var var) {
+  public boolean inlineable(final InlineContext ic) {
     return true;
   }
 
@@ -54,7 +53,7 @@ public final class IndexStaticDb extends IndexDb {
   }
 
   @Override
-  public IndexDb inline(final ExprInfo ei, final Expr ex, final CompileContext cc) {
+  public IndexDb inline(final InlineContext ic) {
     return null;
   }
 
@@ -70,7 +69,7 @@ public final class IndexStaticDb extends IndexDb {
 
   @Override
   public IndexDb copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new IndexStaticDb(data, info);
+    return copyType(new IndexStaticDb(data, info));
   }
 
   @Override
@@ -94,7 +93,7 @@ public final class IndexStaticDb extends IndexDb {
   }
 
   @Override
-  public String toString() {
-    return Str.get(data.meta.name).toString();
+  public void plan(final QueryString qs) {
+    qs.quoted(Token.token(data.meta.name));
   }
 }

@@ -12,7 +12,7 @@ import org.basex.util.hash.*;
 /**
  * FTContent expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FTContent extends FTFilter {
@@ -63,7 +63,7 @@ public final class FTContent extends FTFilter {
 
   @Override
   public FTExpr copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new FTContent(info, exprs[0].copy(cc, vm), content);
+    return copyType(new FTContent(info, exprs[0].copy(cc, vm), content));
   }
 
   @Override
@@ -72,10 +72,10 @@ public final class FTContent extends FTFilter {
   }
 
   @Override
-  public String toString() {
-    return super.toString() + (
-      content == FTContents.START ? AT + ' ' + START :
-      content == FTContents.END   ? AT + ' ' + END :
-        ENTIRE + ' ' + CONTENT);
+  public void plan(final QueryString qs) {
+    qs.token(exprs[0]);
+    if(content == FTContents.START) qs.token(AT).token(START);
+    if(content == FTContents.END) qs.token(AT).token(END);
+    qs.token(ENTIRE).token(CONTENT);
   }
 }

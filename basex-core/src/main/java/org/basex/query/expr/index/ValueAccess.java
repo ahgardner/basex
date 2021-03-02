@@ -19,6 +19,7 @@ import org.basex.query.value.*;
 import org.basex.query.value.item.*;
 import org.basex.query.value.node.*;
 import org.basex.query.value.seq.*;
+import org.basex.query.value.type.*;
 import org.basex.query.var.*;
 import org.basex.util.*;
 import org.basex.util.hash.*;
@@ -27,7 +28,7 @@ import org.basex.util.list.*;
 /**
  * This index class retrieves texts and attribute values from the index.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class ValueAccess extends IndexAccess {
@@ -69,7 +70,8 @@ public final class ValueAccess extends IndexAccess {
   /**
    * Constructor.
    * @param info input info
-   * @param type index type
+   * @param type index type ({@link IndexType#TEXT}, {@link IndexType#TOKEN},
+   *   {@link IndexType#ATTRIBUTE})
    * @param test test test (can be {@code null})
    * @param db index database
    * @param expr search expression
@@ -77,11 +79,27 @@ public final class ValueAccess extends IndexAccess {
    */
   private ValueAccess(final InputInfo info, final IndexType type, final NameTest test,
       final IndexDb db, final Expr expr, final TokenSet tokens) {
-    super(db, info, type);
+    super(db, info, test != null ? NodeType.ELEMENT : type == IndexType.TEXT ? NodeType.TEXT :
+      NodeType.ATTRIBUTE);
     this.type = type;
     this.test = test;
-    this.tokens = tokens;
     this.expr = expr;
+    this.tokens = tokens;
+  }
+
+  /**
+   * Assigns the result size.
+   * @param size result size
+   */
+  public void size(final int size) {
+    // result size can be determined statically if:
+    // - index access is not followed by a name test,
+    // - all search tokens are known, and
+    // - at most token is looked up, or it is not looked up in a token index
+    if(test == null && tokens != null && (tokens.size() <= 1 || type != IndexType.TOKEN)) {
+      // example: //text()[. = ('A', 'B')]
+      exprType.assign(seqType(), size);
+    }
   }
 
   @Override
@@ -164,7 +182,7 @@ public final class ValueAccess extends IndexAccess {
       return new DBNodeIter(data) {
         @Override
         public DBNode next() {
-          while(ii.more()) {
+          if(ii.more()) {
             tmp.pre(ii.pre());
             return tmp.finish();
           }
@@ -179,7 +197,7 @@ public final class ValueAccess extends IndexAccess {
 
       @Override
       public DBNode next() {
-        while(ii.more()) {
+        if(ii.more()) {
           final int pre = ii.pre();
           tmp.pre(pre);
           list.add(pre);
@@ -265,8 +283,8 @@ public final class ValueAccess extends IndexAccess {
   }
 
   @Override
-  public boolean inlineable(final Var var) {
-    return expr.inlineable(var) && super.inlineable(var);
+  public boolean inlineable(final InlineContext ic) {
+    return expr.inlineable(ic) && super.inlineable(ic);
   }
 
   @Override
@@ -275,12 +293,11 @@ public final class ValueAccess extends IndexAccess {
   }
 
   @Override
-  public Expr inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-    final Expr inlined = expr.inline(ei, ex, cc);
+  public Expr inline(final InlineContext ic) throws QueryException {
+    final Expr inlined = expr.inline(ic);
     if(inlined != null) expr = inlined;
-    final Expr inlined2 = super.inline(ei, ex, cc);
-    return inlined != null || inlined2 != null ? optimize(cc) : null;
+    final boolean inlinedDb = inlineDb(ic);
+    return inlined != null || inlinedDb ? optimize(ic.cc) : null;
   }
 
   @Override
@@ -312,13 +329,11 @@ public final class ValueAccess extends IndexAccess {
   }
 
   @Override
-  public String toString() {
-    final TokenBuilder tb = new TokenBuilder();
-    final Function func = type == IndexType.TEXT ? Function._DB_TEXT : type == IndexType.ATTRIBUTE
-        ? Function._DB_ATTRIBUTE : Function._DB_TOKEN;
-    tb.add(func.args(db, toExpr()).substring(1));
-    if(test != null) tb.add("/parent::").add(test);
-    return tb.toString();
+  public void plan(final QueryString qs) {
+    final Function function = type == IndexType.TEXT ? Function._DB_TEXT :
+      type == IndexType.ATTRIBUTE ? Function._DB_ATTRIBUTE : Function._DB_TOKEN;
+    qs.function(function, db, toExpr());
+    if(test != null) qs.token('/').token(new CachedStep(info, Axis.PARENT, test));
   }
 
   /**

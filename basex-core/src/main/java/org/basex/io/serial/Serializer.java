@@ -26,7 +26,7 @@ import org.basex.util.list.*;
 /**
  * This is an interface for serializing XQuery values.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public abstract class Serializer implements Closeable {
@@ -48,6 +48,8 @@ public abstract class Serializer implements Closeable {
   protected StaticContext sc;
   /** Indicates if at least one item was already serialized. */
   protected boolean more;
+  /** Flag for skipping elements. */
+  protected int skip;
   /** Indicates if an element is currently being opened. */
   private boolean opening;
 
@@ -153,7 +155,6 @@ public abstract class Serializer implements Closeable {
    * @throws IOException I/O exception
    */
   protected void node(final ANode node) throws IOException {
-    if(ignore(node)) return;
     if(node instanceof DBNode) {
       node((DBNode) node);
     } else {
@@ -218,7 +219,7 @@ public abstract class Serializer implements Closeable {
 
     final byte[] ancUri = nsUri(prefix);
     if(ancUri == null || !eq(ancUri, uri)) {
-      attribute(prefix.length == 0 ? XMLNS : concat(XMLNSC, prefix), uri, standalone);
+      attribute(prefix.length == 0 ? XMLNS : concat(XMLNS_COLON, prefix), uri, standalone);
       nspaces.add(prefix, uri);
     }
   }
@@ -236,12 +237,12 @@ public abstract class Serializer implements Closeable {
   }
 
   /**
-   * Checks if an element should be ignored.
+   * Checks if an element should be skipped.
    * @param node node to be serialized
    * @return result of check
    */
   @SuppressWarnings("unused")
-  protected boolean ignore(final ANode node) {
+  protected boolean skipElement(final ANode node) {
     return false;
   }
 
@@ -327,13 +328,14 @@ public abstract class Serializer implements Closeable {
   @SuppressWarnings("unused")
   protected void function(final FItem item) throws IOException { }
 
+  // PRIVATE METHODS ==============================================================================
+
   /**
    * Serializes a node of the specified data reference.
    * @param node database node
    * @throws IOException I/O exception
    */
-  protected final void node(final DBNode node) throws IOException {
-    final FTPosData ft = node instanceof FTPosNode ? ((FTPosNode) node).ftpos : null;
+  private void node(final DBNode node) throws IOException {
     final Data data = node.data();
     int pre = node.pre(), kind = data.kind(pre);
 
@@ -349,6 +351,7 @@ public abstract class Serializer implements Closeable {
       return;
     }
 
+    final FTPosData ft = node instanceof FTPosNode ? ((FTPosNode) node).ftpos : null;
     final boolean nsExist = !data.nspaces.isEmpty();
     final TokenSet nsSet = nsExist ? new TokenSet() : null;
     final IntList parentStack = new IntList();
@@ -373,6 +376,9 @@ public abstract class Serializer implements Closeable {
         prepareComment(data.text(pre++, true));
       } else if(kind == Data.PI) {
         preparePi(data.name(pre, Data.PI), data.atom(pre++));
+      } else if(skip > 0 && skipElement(new DBNode(data, pre, kind))) {
+        // ignore specific elements
+        pre += data.size(pre, kind);
       } else {
         // element node:
         final byte[] name = data.name(pre, kind);
@@ -411,8 +417,7 @@ public abstract class Serializer implements Closeable {
         indentStack.push(indent);
         final int as = pre + data.attSize(pre, kind);
         while(++pre != as) {
-          final byte[] n = data.name(pre, Data.ATTR);
-          final byte[] v = data.text(pre, false);
+          final byte[] n = data.name(pre, Data.ATTR), v = data.text(pre, false);
           attribute(n, v, false);
           if(eq(n, XML_SPACE) && indent) indent = !eq(v, PRESERVE);
         }
@@ -433,23 +438,23 @@ public abstract class Serializer implements Closeable {
    * @param node database node
    * @throws IOException I/O exception
    */
-  protected final void node(final FNode node) throws IOException {
+  private void node(final FNode node) throws IOException {
     final Type type = node.type;
-    if(type == NodeType.COM) {
+    if(type == NodeType.COMMENT) {
       prepareComment(node.string());
-    } else if(type == NodeType.TXT) {
+    } else if(type == NodeType.TEXT) {
       prepareText(node.string(), null);
-    } else if(type == NodeType.PI) {
+    } else if(type == NodeType.PROCESSING_INSTRUCTION) {
       preparePi(node.name(), node.string());
-    } else if(type == NodeType.ATT) {
+    } else if(type == NodeType.ATTRIBUTE) {
       attribute(node.name(), node.string(), true);
-    } else if(type == NodeType.NSP) {
+    } else if(type == NodeType.NAMESPACE_NODE) {
       namespace(node.name(), node.string(), true);
-    } else if(type == NodeType.DOC) {
+    } else if(type == NodeType.DOCUMENT_NODE) {
       openDoc(node.baseURI());
-      for(final ANode n : node.childIter()) node(n);
+      for(final ANode nd : node.childIter()) node(nd);
       closeDoc();
-    } else {
+    } else if(skip == 0 || !skipElement(node)) {
       // serialize elements (code will never be called for attributes)
       final QNm name = node.qname();
       openElement(name);
@@ -464,21 +469,20 @@ public abstract class Serializer implements Closeable {
       final boolean i = indent;
       BasicNodeIter iter = node.attributeIter();
       for(ANode nd; (nd = iter.next()) != null;) {
-        final byte[] n = nd.name();
-        final byte[] v = nd.string();
+        final byte[] n = nd.name(), v = nd.string();
         attribute(n, v, false);
         if(eq(n, XML_SPACE) && indent) indent = !eq(v, PRESERVE);
       }
 
       // serialize children
       iter = node.childIter();
-      for(ANode n; (n = iter.next()) != null;) node(n);
+      for(ANode n; (n = iter.next()) != null;) {
+        node(n);
+      }
       closeElement();
       indent = i;
     }
   }
-
-  // PRIVATE METHODS ==============================================================================
 
   /**
    * Serializes a comment.
@@ -522,5 +526,32 @@ public abstract class Serializer implements Closeable {
     finishOpen();
     elems.push(elem);
     level++;
+  }
+
+  // STATIC METHODS ===============================================================================
+
+  /**
+   * Serializes the specified value.
+   * @param value value
+   * @param chop chop large tokens
+   * @param quote character for quoting the value; ignored if {@code null}
+   * @return value
+   */
+  public static byte[] value(final byte[] value, final int quote, final boolean chop) {
+    final TokenBuilder tb = new TokenBuilder();
+    if(quote != 0) tb.add(quote);
+    for(final byte v : value) {
+      if(chop && tb.size() > 127) {
+        tb.add(QueryText.DOTS);
+        break;
+      }
+      if(v == '&') tb.add(E_AMP);
+      else if(v == '\r') tb.add(E_CR);
+      else if(v == '\n') tb.add(E_NL);
+      else if(v == quote) tb.add(quote).add(quote);
+      else tb.addByte(v);
+    }
+    if(quote != 0) tb.add(quote);
+    return tb.finish();
   }
 }

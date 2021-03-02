@@ -12,7 +12,7 @@ import org.junit.jupiter.api.*;
 /**
  * Tests the command-line arguments of the client starter class.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class BaseXClientTest extends BaseXTest {
@@ -32,16 +32,14 @@ public final class BaseXClientTest extends BaseXTest {
   /**
    * Test client with invalid port argument.
    */
-  @Test
-  public void portErr() {
+  @Test public void portErr() {
     assertThrows(BaseXException.class, () -> run("-px"));
   }
 
   /**
    * Test client with invalid port number.
    */
-  @Test
-  public void portErr2() {
+  @Test public void portErr2() {
     assertThrows(BaseXException.class, () -> run("-px0"));
   }
 

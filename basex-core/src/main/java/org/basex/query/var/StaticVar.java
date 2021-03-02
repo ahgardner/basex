@@ -10,13 +10,12 @@ import org.basex.query.scope.*;
 import org.basex.query.util.*;
 import org.basex.query.util.list.*;
 import org.basex.query.value.*;
-import org.basex.query.value.type.*;
 import org.basex.util.*;
 
 /**
  * Static variable to which an expression can be assigned.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class StaticVar extends StaticDecl {
@@ -57,8 +56,7 @@ public final class StaticVar extends StaticDecl {
     try {
       expr = expr.compile(cc);
     } catch(final QueryException qe) {
-      // error: set most general sequence type
-      declType = SeqType.ITEM_ZM;
+      declType = null;
       if(lazy) {
         expr = cc.error(qe, expr);
         return;
@@ -120,7 +118,7 @@ public final class StaticVar extends StaticDecl {
   void bind(final Value val, final QueryContext qc) throws QueryException {
     if(!external || compiled) return;
     bindValue(declType == null || declType.instance(val) ? val :
-      declType.cast(val, qc, sc, info), qc);
+      declType.cast(val, true, qc, sc, info), qc);
   }
 
   /**
@@ -181,12 +179,11 @@ public final class StaticVar extends StaticDecl {
   }
 
   @Override
-  public String toString() {
-    final TokenBuilder tb = new TokenBuilder().add(DECLARE).add(' ').add(anns);
-    tb.add(VARIABLE).add(' ').add(name());
-    if(declType != null) tb.add(' ').add(AS).add(' ').add(declType);
-    if(external) tb.add(' ').add(EXTERNAL);
-    if(expr != null) tb.add(' ').add(ASSIGN).add(' ').add(expr);
-    return tb.add(';').toString();
+  public void plan(final QueryString qs) {
+    qs.token(DECLARE).token(anns).token(VARIABLE).token(name());
+    if(declType != null) qs.token(AS).token(declType);
+    if(external) qs.token(EXTERNAL);
+    if(expr != null) qs.token(ASSIGN).token(expr);
+    qs.token(';');
   }
 }

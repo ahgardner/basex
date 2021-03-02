@@ -10,7 +10,7 @@ import org.basex.util.*;
 /**
  * Pragma for database options.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class BaseXPragma extends Pragma {
@@ -43,11 +43,11 @@ public final class BaseXPragma extends Pragma {
 
   @Override
   public void accept(final ASTVisitor visitor) {
-    final byte[] nm = name.local();
-    final boolean read = Token.eq(nm, Annotation._BASEX_READ_LOCK.local());
-    final boolean write = Token.eq(nm, Annotation._BASEX_WRITE_LOCK.local());
-    if(!(read || write)) return;
-    for(final String lock : Locking.queryLocks(value)) visitor.lock(lock, write);
+    if(Token.eq(name.local(), Annotation._BASEX_LOCK.local())) {
+      for(final String lock : Locking.queryLocks(value)) {
+        visitor.lock(lock, false);
+      }
+    }
   }
 
   @Override

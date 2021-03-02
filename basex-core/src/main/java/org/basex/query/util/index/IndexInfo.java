@@ -22,7 +22,7 @@ import org.basex.util.hash.*;
 /**
  * This class contains methods for storing information on new index expressions.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class IndexInfo {
@@ -64,7 +64,8 @@ public final class IndexInfo {
    * the applicable index type.
    * @param input input (if {@code null}, no optimization will be possible)
    * @param type index type, predefined by the called expression (can be {@code null})
-   * @return resulting index type, or {@code null} if index access is not possible
+   * @return supplied type, {@link IndexType#TEXT}, {@link IndexType#ATTRIBUTE}, or
+   *   {@code null} if index access is not possible
    */
   public IndexType type(final Expr input, final IndexType type) {
     pred = IndexPred.get(input, this);
@@ -75,21 +76,21 @@ public final class IndexInfo {
     if(last == null) return null;
 
     final Data data = db.data();
-    if(last.test.type == NodeType.TXT) {
+    if(last.test.type == NodeType.TEXT) {
       text = true;
-    } else if(last.test.type == NodeType.ELM) {
+    } else if(last.test.type == NodeType.ELEMENT) {
       // ensure that addressed elements only have text nodes as children
       // stop if database is unknown/out-dated, if namespaces occur, or if name test is not simple
       if(data == null || !(data.meta.uptodate && data.nspaces.isEmpty()) ||
           !(last.test instanceof NameTest)) return null;
 
       test = (NameTest) last.test;
-      if(test.part != NamePart.LOCAL) return null;
+      if(test.part() != NamePart.LOCAL) return null;
 
       final Stats stats = data.elemNames.stats(data.elemNames.id(test.qname.local()));
       if(stats == null || !stats.isLeaf()) return null;
       text = true;
-    } else if(last.test.type != NodeType.ATT) {
+    } else if(last.test.type != NodeType.ATTRIBUTE) {
       // other tests cannot be rewritten for index access
       return null;
     }
@@ -168,7 +169,7 @@ public final class IndexInfo {
 
       // create expression for index access
       final ValueAccess va = new ValueAccess(ii, tokens, type, test, db);
-      if(counts == 1) va.exprType.assign(Occ.ZERO_ONE);
+      va.size(counts);
       root = va;
 
     } else {
@@ -205,7 +206,7 @@ public final class IndexInfo {
     if(test == null || !parent) {
       rt = root;
     } else {
-      final Expr st = new StepBuilder(ii).axis(Axis.PARENT).test(test).finish(cc, root);
+      final Expr st = Step.get(cc, root, ii, Axis.PARENT, test);
       rt = Path.get(cc, ii, root, st);
     }
     expr = pred.invert(rt);

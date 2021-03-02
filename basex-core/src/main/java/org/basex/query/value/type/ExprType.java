@@ -6,7 +6,7 @@ import org.basex.util.*;
 /**
  * Expression type, including a sequence type and result size.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class ExprType {
@@ -40,11 +40,11 @@ public final class ExprType {
   }
 
   /**
-   * Assigns the specified type, updates the result size.
+   * Assigns the specified sequence type, updates the result size.
    * @param st sequence type
    */
   public void assign(final SeqType st) {
-    assign(st, st.zero() ? 0 : st.one() ? 1 : -1);
+    asg(st, st.zero() ? 0 : st.one() ? 1 : -1);
   }
 
   /**
@@ -52,7 +52,7 @@ public final class ExprType {
    * @param expr expression
    */
   public void assign(final Expr expr) {
-    assign(expr.seqType(), expr.size());
+    asg(expr.seqType(), expr.size());
   }
 
   /**
@@ -60,7 +60,7 @@ public final class ExprType {
    * @param et expression type
    */
   public void assign(final ExprType et) {
-    assign(et.seqType, et.size);
+    asg(et.seqType, et.size);
   }
 
   /**
@@ -68,7 +68,7 @@ public final class ExprType {
    * @param type type
    */
   public void assign(final Type type) {
-    seqType = seqType.with(type);
+    seqType = SeqType.get(type, seqType.occ);
   }
 
   /**
@@ -77,7 +77,7 @@ public final class ExprType {
    * @param occ occurrence indicator
    */
   public void assign(final Type type, final Occ occ) {
-    assign(seqType.with(type, occ));
+    assign(SeqType.get(type, occ));
   }
 
   /**
@@ -89,29 +89,39 @@ public final class ExprType {
   }
 
   /**
-   * Assigns the specified type and result size. The occurrence indicator is ignored if the exact
-   * result size is known.
-   * @param type type
-   * @param occ occurrence indicator
-   * @param sz exact result size (unknown if negative)
+   * Assigns the specified sequence type and result size.
+   * The occurrence indicator of the sequence type is ignored if the result size is known.
+   * @param st sequence type
+   * @param sz result size (unknown if negative)
    */
-  public void assign(final Type type, final Occ occ, final long sz) {
+  public void assign(final SeqType st, final long sz) {
     if(sz >= 0) {
-      assign(seqType.with(type, sz == 0 ? Occ.ZERO : sz == 1 ? Occ.ONE : Occ.ONE_MORE), sz);
+      asg(st.with(sz == 0 ? Occ.ZERO : sz == 1 ? Occ.EXACTLY_ONE : Occ.ONE_OR_MORE), sz);
     } else {
-      assign(type, occ);
+      assign(st);
     }
   }
 
   /**
+   * Assigns the specified type and result size.
+   * The specified occurrence indicator is ignored if the result size is known.
+   * @param st sequence type (the occurrence indicator is ignored)
+   * @param occ occurrence indicator
+   * @param sz result size (unknown if negative)
+   */
+  public void assign(final SeqType st, final Occ occ, final long sz) {
+    assign(sz >= 0 ? st : st.with(occ), sz);
+  }
+
+  /**
    * Assigns the type and result size, based on the specified min/max occurrences.
-   * @param type type
+   * @param st sequence type (the occurrence indicator is ignored)
    * @param minMax min/max values (min: 0 or more, max: -1 or more)
    */
-  public void assign(final Type type, final long[] minMax) {
+  public void assign(final SeqType st, final long[] minMax) {
     final long min = minMax[0], max = minMax[1], sz = min == max ? min : -1;
-    final Occ occ = min == 0 ? max == 1 ? Occ.ZERO_ONE : Occ.ZERO_MORE : Occ.ONE_MORE;
-    assign(type, occ, sz);
+    final Occ occ = min > 0 ? Occ.ONE_OR_MORE : max == 1 ? Occ.ZERO_OR_ONE : Occ.ZERO_OR_MORE;
+    assign(st, occ, sz);
   }
 
   /**
@@ -120,7 +130,10 @@ public final class ExprType {
    */
   public void refine(final Expr expr) {
     final SeqType st = seqType.intersect(expr.seqType());
-    if(st != null) assign(st.type, st.occ, size != -1 ? size : expr.size());
+    if(st != null) {
+      final long es = expr.size();
+      asg(st, es == size || size == -1 ? es : es == -1 ? size : -1);
+    }
   }
 
   /**
@@ -128,7 +141,7 @@ public final class ExprType {
    * @param st sequence type
    * @param sz result size
    */
-  private void assign(final SeqType st, final long sz) {
+  private void asg(final SeqType st, final long sz) {
     seqType = st;
     size = sz;
   }

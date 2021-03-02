@@ -1,10 +1,11 @@
 package org.basex.query.func.util;
 
+import static org.basex.query.func.Function.*;
+
 import org.basex.query.*;
 import org.basex.query.expr.*;
 import org.basex.query.func.*;
 import org.basex.query.iter.*;
-import org.basex.query.value.*;
 import org.basex.query.value.item.*;
 import org.basex.query.value.seq.*;
 import org.basex.query.value.type.*;
@@ -13,7 +14,7 @@ import org.basex.util.*;
 /**
  * Function implementation.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class UtilLast extends StandardFunc {
@@ -36,19 +37,29 @@ public final class UtilLast extends StandardFunc {
     final SeqType st = expr.seqType();
     if(st.zeroOrOne()) return expr;
 
-    // ignore standard limitation for large values
-    final long size = expr.size();
-    if(expr instanceof Value) return ((Value) expr).itemAt(size - 1);
-
     // rewrite nested function calls
-    if(Function.TAIL.is(expr) && size > 1)
-      return cc.function(Function._UTIL_LAST, info, args(expr));
-    if(Function._UTIL_INIT.is(expr) && size > 0)
-      return cc.function(Function._UTIL_ITEM, info, args(expr)[0], Int.get(size));
-    if(Function.REVERSE.is(expr))
-      return cc.function(Function.HEAD, info, args(expr));
+    final long size = expr.size();
+    if(TAIL.is(expr) && size > 1)
+      return cc.function(_UTIL_LAST, info, expr.args());
+    if(_UTIL_INIT.is(expr) && size > 0)
+      return cc.function(_UTIL_ITEM, info, expr.arg(0), Int.get(size));
+    if(REVERSE.is(expr))
+      return cc.function(HEAD, info, expr.args());
+    if(_UTIL_REPLICATE.is(expr)) {
+      // static integer will always be greater than 1
+      if(expr.arg(1) instanceof Int) return cc.function(_UTIL_LAST, info, expr.arg(0));
+    }
 
-    exprType.assign(st.type, st.oneOrMore() ? Occ.ONE : Occ.ZERO_ONE);
+    // rewrite list
+    if(expr instanceof List) {
+      final Expr[] args = expr.args();
+      final Expr last = args[args.length - 1];
+      final SeqType stl = last.seqType();
+      if(stl.one()) return last;
+      if(stl.oneOrMore()) return cc.function(_UTIL_LAST, info, last);
+    }
+
+    exprType.assign(st.with(st.oneOrMore() ? Occ.EXACTLY_ONE : Occ.ZERO_OR_ONE));
     data(expr.data());
     return this;
   }

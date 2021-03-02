@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 /**
  * This class tests user permissions.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Andreas Weiler
  */
 public final class PermissionTest extends SandboxTest {
@@ -46,8 +46,9 @@ public final class PermissionTest extends SandboxTest {
 
   /**
    * Stops the server.
+   * @throws IOException I/O exception
    */
-  @AfterAll public static void stop() {
+  @AfterAll public static void stop() throws IOException {
     stopServer(server);
     new IOFile(Prop.TEMPDIR, NAME + "-export").delete();
   }
@@ -79,8 +80,6 @@ public final class PermissionTest extends SandboxTest {
       adminSession.execute(new DropDB(NAME2));
       adminSession.execute(new DropDB(NAME));
       adminSession.close();
-      // give the server some time to clean up the sessions before next test
-      Performance.sleep(1000);
     } catch(final Exception ex) {
       fail(Util.message(ex));
     }

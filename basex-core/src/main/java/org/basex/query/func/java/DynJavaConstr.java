@@ -8,6 +8,7 @@ import java.util.*;
 
 import org.basex.query.*;
 import org.basex.query.expr.*;
+import org.basex.query.value.item.*;
 import org.basex.query.var.*;
 import org.basex.util.*;
 import org.basex.util.hash.*;
@@ -15,7 +16,7 @@ import org.basex.util.hash.*;
 /**
  * Dynamic invocation of a Java constructor.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 final class DynJavaConstr extends DynJavaCall {
@@ -86,12 +87,12 @@ final class DynJavaConstr extends DynJavaCall {
   public Expr copy(final CompileContext cc, final IntObjMap<Var> vm) {
     final DynJavaConstr c = new DynJavaConstr(clazz, types, copyAll(cc, vm, exprs), sc, info);
     c.constrs = constrs;
-    return c;
+    return copyType(c);
   }
 
   @Override
   String desc() {
-    return EQNAME + JAVAPREF + clazz.getName() + CURLY2 + NEW;
+    return QNm.eqName(JAVAPREF + clazz.getName(), NEW);
   }
 
   @Override

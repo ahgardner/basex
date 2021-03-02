@@ -19,7 +19,7 @@ import org.basex.util.*;
  * This class creates a database instance on disk.
  * The storage layout is described in the {@link Data} class.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class DiskBuilder extends Builder {
@@ -170,6 +170,6 @@ public final class DiskBuilder extends Builder {
     final DataOutput store = text ? xout : vout;
     final long offset = store.size();
     store.writeToken(packed);
-    return packed != value ? Compress.COMPRESS | offset : offset;
+    return packed == value ? offset : Compress.COMPRESS | offset;
   }
 }

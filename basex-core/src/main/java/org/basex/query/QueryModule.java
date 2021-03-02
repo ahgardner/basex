@@ -21,7 +21,7 @@ import org.basex.query.iter.*;
  *       also make it accessible to users with less privileges.</li>
  *   <li>Java code is treated as "non-deterministic", as its behavior cannot
  *       be predicted by the XQuery processor. You may annotate a function as
- *       {@link Deterministic} if you know that it will have no side-effects and will
+ *       {@link Deterministic} if you know that it will have no side effects and will
  *       always yield the same result.</li>
  *   <li>Java code is treated as "context-independent". If a function accesses
  *       the specified {@link #queryContext}, it should be annotated as
@@ -36,14 +36,14 @@ import org.basex.query.iter.*;
  * connections, resources, etc. that eventually need to be closed.
  *
  * <p>Please visit our documentation to find more details on
- * <a href="http://docs.basex.org/wiki/Packaging">Packaging</a>,
- * <a href="http://docs.basex.org/wiki/Java_Bindings">Java Bindings</a> and
- * <a href="http://docs.basex.org/wiki/User_Management">User Management</a>.
+ * <a href="https://docs.basex.org/wiki/Packaging">Packaging</a>,
+ * <a href="https://docs.basex.org/wiki/Java_Bindings">Java Bindings</a> and
+ * <a href="https://docs.basex.org/wiki/User_Management">User Management</a>.
  * The XQuery 3.0 specification gives more insight into
- * <a href="http://www.w3.org/TR/xpath-functions-30/#properties-of-functions">function
+ * <a href="https://www.w3.org/TR/xpath-functions-30/#properties-of-functions">function
  * properties</a>.</p>
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public abstract class QueryModule {
@@ -79,9 +79,16 @@ public abstract class QueryModule {
   }
 
   /**
+   * If a function is annotated as {@link Updating}, its function body will be treated as updating.
+   */
+  @Retention(RetentionPolicy.RUNTIME)
+  @Target(ElementType.METHOD)
+  public @interface Updating { }
+
+  /**
    * Java code is treated as "non-deterministic", as its behavior cannot be predicted from
    * the XQuery processor. You may annotate a function as {@link Deterministic} if you
-   * know that it will have no side-effects and will always yield the same result.
+   * know that it will have no side effects and will always yield the same result.
    */
   @Retention(RetentionPolicy.RUNTIME)
   @Target(ElementType.METHOD)
@@ -112,16 +119,10 @@ public abstract class QueryModule {
   @Target(ElementType.METHOD)
   public @interface Lock {
     /**
-     * Read locks.
-     * @return read locks
+     * Lock.
+     * @return read lock
      */
-    String[] read() default { };
-
-    /**
-     * Write locks.
-     * @return write locks
-     */
-    String[] write() default { };
+    String value();
   }
 
   /** Global query context. */

@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Admin stress test.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Dimitar Popov
  */
 public final class AdminStressTest extends SandboxTest {
@@ -32,8 +32,9 @@ public final class AdminStressTest extends SandboxTest {
 
   /**
    * Stops the server.
+   * @throws IOException I/O exception
    */
-  @AfterAll public static void stop() {
+  @AfterAll public static void stop() throws IOException {
     stopServer(server);
   }
 

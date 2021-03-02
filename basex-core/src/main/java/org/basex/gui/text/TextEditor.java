@@ -15,7 +15,7 @@ import org.basex.util.list.*;
 /**
  * Provides methods for editing a text that is visualized by the {@link TextPanel}.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class TextEditor {
@@ -633,7 +633,7 @@ public final class TextEditor {
     if(ind != 0) {
       final StringBuilder spaces = new StringBuilder();
       for(int i = 0; i < ind; i++) spaces.append(' ');
-      v = new TokenBuilder().addSeparated(v.split("\n"), "\n" + spaces).toString();
+      v = new TokenBuilder().addAll(v.split("\n"), "\n" + spaces).toString();
     }
     // delete old string, add new one
     replace(p, pos, v);

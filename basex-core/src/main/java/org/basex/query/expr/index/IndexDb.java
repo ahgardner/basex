@@ -12,7 +12,7 @@ import org.basex.util.hash.*;
 /**
  * This class defines the database source for index operations.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public abstract class IndexDb extends ParseExpr {
@@ -46,7 +46,7 @@ public abstract class IndexDb extends ParseExpr {
   abstract Data data(QueryContext qc) throws QueryException;
 
   @Override
-  public abstract IndexDb inline(ExprInfo ei, Expr ex, CompileContext cc) throws QueryException;
+  public abstract IndexDb inline(InlineContext ic) throws QueryException;
 
   @Override
   public abstract IndexDb copy(CompileContext cc, IntObjMap<Var> vm);

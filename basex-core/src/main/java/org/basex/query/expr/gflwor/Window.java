@@ -11,6 +11,7 @@ import org.basex.query.iter.*;
 import org.basex.query.util.*;
 import org.basex.query.value.*;
 import org.basex.query.value.item.*;
+import org.basex.query.value.node.*;
 import org.basex.query.value.type.*;
 import org.basex.query.var.*;
 import org.basex.util.*;
@@ -19,7 +20,7 @@ import org.basex.util.hash.*;
 /**
  * The GFLWOR {@code window} clause.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class Window extends Clause {
@@ -257,7 +258,8 @@ public final class Window extends Clause {
 
   @Override
   public Clause optimize(final CompileContext cc) throws QueryException {
-    var.refineType(expr.seqType().with(Occ.ZERO_MORE), cc);
+    exprType.assign(expr.seqType().union(Occ.ZERO));
+    var.refineType(seqType(), cc);
     return this;
   }
 
@@ -267,7 +269,7 @@ public final class Window extends Clause {
   }
 
   @Override
-  public boolean inlineable(final Var v) {
+  public boolean inlineable(final InlineContext v) {
     return expr.inlineable(v) && start.inlineable(v) && (end == null || end.inlineable(v));
   }
 
@@ -278,15 +280,14 @@ public final class Window extends Clause {
   }
 
   @Override
-  public Clause inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-    final Expr inlined = expr.inline(ei, ex, cc);
-    final Condition st = start.inline(ei, ex, cc);
-    final Condition en = end == null ? null : end.inline(ei, ex, cc);
+  public Clause inline(final InlineContext ic) throws QueryException {
+    final Expr inlined = expr.inline(ic);
+    final Condition st = start.inline(ic);
+    final Condition en = end == null ? null : end.inline(ic);
     if(inlined != null) expr = inlined;
     if(st != null) start = st;
     if(en != null) end = en;
-    return inlined != null || st != null || en != null ? optimize(cc) : null;
+    return inlined != null || st != null || en != null ? optimize(ic.cc) : null;
   }
 
   @Override
@@ -314,7 +315,7 @@ public final class Window extends Clause {
   }
 
   @Override
-  void calcSize(final long[] minMax) {
+  public void calcSize(final long[] minMax) {
     // number of results cannot be anticipated
     minMax[0] = 0;
     minMax[1] = expr.seqType().zero() ? 0 : -1;
@@ -336,25 +337,24 @@ public final class Window extends Clause {
 
   @Override
   public void plan(final QueryPlan plan) {
-    plan.add(plan.attachVariable(plan.create(this, SLIDING, sliding), var, true), start, end, expr);
+    final FElem elem = plan.attachVariable(plan.create(this, SLIDING, sliding), var, false);
+    plan.add(elem, start, end, expr);
   }
 
   @Override
-  public String toString() {
-    final StringBuilder sb = new StringBuilder(FOR).append(' ').
-        append(sliding ? SLIDING : TUMBLING).append(' ').append(WINDOW).append(' ').append(var).
-        append(' ').append(IN).append(' ').append(expr).append(' ').append(start);
+  public void plan(final QueryString qs) {
+    qs.token(FOR).token(sliding ? SLIDING : TUMBLING).token(WINDOW).token(var).token(IN).
+      token(expr).token(start);
     if(end != null) {
-      if(only) sb.append(' ').append(ONLY);
-      sb.append(' ').append(end);
+      if(only) qs.token(ONLY);
+      qs.token(end);
     }
-    return sb.toString();
   }
 
   /**
    * Evaluator for the Window clause.
    *
-   * @author BaseX Team 2005-20, BSD License
+   * @author BaseX Team 2005-21, BSD License
    * @author Leo Woerteler
    */
   private abstract class WindowEval extends Eval {
@@ -397,7 +397,7 @@ public final class Window extends Clause {
   /**
    * Evaluator for the Tumbling Window clause.
    *
-   * @author BaseX Team 2005-20, BSD License
+   * @author BaseX Team 2005-21, BSD License
    * @author Leo Woerteler
    */
   private abstract class TumblingEval extends WindowEval {
@@ -409,7 +409,7 @@ public final class Window extends Clause {
     Item next;
 
     /**
-     * Reads a new current item and populates the {@code nxt} variable if it's used.
+     * Reads a new current item and populates the {@code next} variable if it's used.
      * @return next item
      * @throws QueryException evaluation exception
      */

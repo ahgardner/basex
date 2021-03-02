@@ -1,13 +1,16 @@
 package org.basex.query.func.fn;
 
 import static org.basex.query.QueryError.*;
+import static org.basex.query.func.Function.*;
 
 import java.util.*;
 
 import org.basex.query.*;
+import org.basex.query.CompileContext.*;
 import org.basex.query.expr.*;
 import org.basex.query.func.*;
 import org.basex.query.iter.*;
+import org.basex.query.util.*;
 import org.basex.query.util.collation.*;
 import org.basex.query.util.list.*;
 import org.basex.query.value.*;
@@ -18,7 +21,7 @@ import org.basex.query.value.type.*;
 /**
  * Function implementation.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FnSort extends StandardFunc {
@@ -53,7 +56,7 @@ public final class FnSort extends StandardFunc {
     final ValueList values = new ValueList(size);
     final Iter iter = value.iter();
     for(Item item; (item = qc.next(iter)) != null;) {
-      values.add((key == null ? item : key.invokeValue(qc, info, item)).atomValue(qc, info));
+      values.add((key == null ? item : key.invoke(qc, info, item)).atomValue(qc, info));
     }
 
     final Integer[] order = sort(values, this, coll, qc);
@@ -115,15 +118,33 @@ public final class FnSort extends StandardFunc {
     final SeqType st1 = expr1.seqType();
     if(st1.zero()) return expr1;
 
+    // enforce pre-evaluation as remaining arguments may not be values
     if(expr1 instanceof Value) {
       final Value value = quickValue((Value) expr1);
       if(value != null) return value;
     }
-    if(exprs.length == 3) {
-      exprs[2] = coerceFunc(exprs[2], cc, SeqType.AAT_ZM, st1.with(Occ.ONE));
+    if(_UTIL_REPLICATE.is(expr1)) {
+      final SeqType st = expr1.arg(0).seqType();
+      if(st.zeroOrOne() && st.type.isSortable()) return expr1;
     }
-
+    if(exprs.length == 3) {
+      exprs[2] = coerceFunc(exprs[2], cc, SeqType.ANY_ATOMIC_TYPE_ZM, st1.with(Occ.EXACTLY_ONE));
+    }
     return adoptType(expr1);
+  }
+
+  @Override
+  public Expr simplifyFor(final Simplify mode, final CompileContext cc) throws QueryException {
+    Expr expr = this;
+    if(mode == Simplify.DISTINCT && seqType().type.isSortable()) {
+      expr = cc.simplify(this, exprs[0]);
+    }
+    return expr == this ? super.simplifyFor(mode, cc) : expr.simplifyFor(mode, cc);
+  }
+
+  @Override
+  public boolean has(final Flag... flags) {
+    return Flag.HOF.in(flags) && exprs.length > 2 || super.has(flags);
   }
 
   /**
@@ -140,7 +161,8 @@ public final class FnSort extends StandardFunc {
       }
       // sortable single or singleton values
       final SeqType st = value.seqType();
-      if(st.type.isSortable() && (st.one() || value instanceof SingletonSeq)) return value;
+      if(st.type.isSortable() && (st.one() || (value instanceof SingletonSeq &&
+          ((SingletonSeq) value).singleItem()))) return value;
     }
     // no quick evaluation possible
     return null;

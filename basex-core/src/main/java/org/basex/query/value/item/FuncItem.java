@@ -19,11 +19,12 @@ import org.basex.query.value.type.*;
 import org.basex.query.var.*;
 import org.basex.util.*;
 import org.basex.util.hash.*;
+import org.basex.util.list.*;
 
 /**
  * Function item.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class FuncItem extends FItem implements Scope {
@@ -55,7 +56,7 @@ public final class FuncItem extends FItem implements Scope {
    */
   public FuncItem(final StaticContext sc, final AnnList anns, final QNm name, final Var[] params,
       final FuncType type, final Expr expr, final int stackSize, final InputInfo info) {
-    this(sc, anns, name, params, type, expr, new QueryFocus(), stackSize, info);
+    this(sc, anns, name, params, type, expr, null, stackSize, info);
   }
 
   /**
@@ -66,7 +67,7 @@ public final class FuncItem extends FItem implements Scope {
    * @param params formal parameters
    * @param type function type
    * @param expr function body
-   * @param focus query focus
+   * @param focus query focus (may be {@code null})
    * @param stackSize stack-frame size
    * @param info input info
    */
@@ -100,17 +101,12 @@ public final class FuncItem extends FItem implements Scope {
   }
 
   @Override
-  public int stackFrameSize() {
-    return stackSize;
-  }
-
-  @Override
-  public Value invValue(final QueryContext qc, final InputInfo ii, final Value... args)
+  public Value invokeInternal(final QueryContext qc, final InputInfo ii, final Value[] args)
       throws QueryException {
 
     // bind variables and cache context
     final QueryFocus qf = qc.focus;
-    qc.focus = focus;
+    qc.focus = focus != null ? focus : new QueryFocus();
     try {
       final int pl = params.length;
       for(int p = 0; p < pl; p++) qc.set(params[p], args[p]);
@@ -121,30 +117,8 @@ public final class FuncItem extends FItem implements Scope {
   }
 
   @Override
-  public Item invItem(final QueryContext qc, final InputInfo ii, final Value... args)
-      throws QueryException {
-    // bind variables and cache context
-    final QueryFocus qf = qc.focus;
-    qc.focus = focus;
-    try {
-      final int pl = params.length;
-      for(int p = 0; p < pl; p++) qc.set(params[p], args[p]);
-      return expr.item(qc, ii);
-    } finally {
-      qc.focus = qf;
-    }
-  }
-
-  @Override
-  public Value invokeValue(final QueryContext qc, final InputInfo ii, final Value... args)
-      throws QueryException {
-    return FuncCall.invoke(this, args, false, qc, info);
-  }
-
-  @Override
-  public Item invokeItem(final QueryContext qc, final InputInfo ii, final Value... args)
-      throws QueryException {
-    return (Item) FuncCall.invoke(this, args, true, qc, info);
+  public int stackFrameSize() {
+    return stackSize;
   }
 
   @Override
@@ -279,36 +253,32 @@ public final class FuncItem extends FItem implements Scope {
 
   @Override
   public String toErrorString() {
-    return toString(true);
+    final QueryString qs = new QueryString();
+    final StringList list = new StringList(params.length);
+    for(final Var param : params) list.add(param.toErrorString());
+    toString(qs, list.finish());
+    return qs.toString();
   }
 
   @Override
-  public String toString() {
-    return toString(false);
+  public void plan(final QueryString qs) {
+    toString(qs, params);
   }
 
   /**
-   * Returns a string representation.
-   * @param error error flag
-   * @return string
+   * Creates a string representation.
+   * @param qs query string builder
+   * @param list list of parameters
    */
-  private String toString(final boolean error) {
-    final TokenBuilder tb = new TokenBuilder();
-    if(name != null) tb.add("(: ").add(name.prefixId()).add("#").addInt(arity()).add(" :) ");
-    tb.add(anns).add(FUNCTION).add('(');
-    final int pl = params.length;
-    for(int p = 0; p < pl; p++) {
-      if(p != 0) tb.add(", ");
-      tb.add(error ? params[p].toErrorString() : params[p]);
-    }
-    tb.add(')').add(" as ").add(funcType().declType).add(" { ").add(expr).add(" }");
-    return tb.toString();
+  private void toString(final QueryString qs, final Object[] list) {
+    if(name != null) qs.concat("(: ", name.prefixId(), "#", arity(), " :)");
+    qs.token(anns).token(FUNCTION).params(list).token(AS).token(funcType().declType).brace(expr);
   }
 
   /**
    * A visitor for checking inlined expressions.
    *
-   * @author BaseX Team 2005-20, BSD License
+   * @author BaseX Team 2005-21, BSD License
    * @author Leo Woerteler
    */
   private class InlineVisitor extends ASTVisitor {

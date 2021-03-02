@@ -16,7 +16,7 @@ import org.basex.util.hash.*;
 /**
  * Function call for user-defined functions.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class StaticFuncCall extends FuncCall {
@@ -118,11 +118,6 @@ public final class StaticFuncCall extends FuncCall {
   }
 
   @Override
-  public boolean ddo() {
-    return func != null && func.expr.ddo();
-  }
-
-  @Override
   public boolean has(final Flag... flags) {
     // check arguments, which will be evaluated previous to the function body
     if(super.has(flags)) return true;
@@ -168,11 +163,11 @@ public final class StaticFuncCall extends FuncCall {
 
   @Override
   public void plan(final QueryPlan plan) {
-    plan.add(plan.create(this, NAME, name.string(), TCL, tco), exprs);
+    plan.add(plan.create(this, NAME, name.string(), TAILCALL, tco), exprs);
   }
 
   @Override
-  public String toString() {
-    return Strings.concat(name.prefixId(), toString(SEP));
+  public void plan(final QueryString qs) {
+    qs.token(name.prefixId()).params(exprs);
   }
 }

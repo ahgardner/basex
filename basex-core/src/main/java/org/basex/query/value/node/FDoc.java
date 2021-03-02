@@ -1,5 +1,7 @@
 package org.basex.query.value.node;
 
+import static org.basex.query.QueryText.*;
+
 import org.basex.query.*;
 import org.basex.query.iter.*;
 import org.basex.query.util.list.*;
@@ -13,7 +15,7 @@ import org.w3c.dom.*;
 /**
  * Document node fragment.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FDoc extends FNode {
@@ -51,11 +53,10 @@ public final class FDoc extends FNode {
    * @param uri base uri
    */
   public FDoc(final ANodeList children, final byte[] uri) {
-    super(NodeType.DOC);
+    super(NodeType.DOCUMENT_NODE);
     this.children = children;
     this.uri = uri;
-    // update parent references
-    for(final ANode n : children) n.parent(this);
+    optimize();
   }
 
   /**
@@ -121,8 +122,8 @@ public final class FDoc extends FNode {
   @Override
   public ID typeId() {
     // check if a document has a single element as child
-    return (children.size() == 1 && children.get(0).type == NodeType.ELM ?
-      NodeType.DEL : type).id();
+    return (children.size() == 1 && children.get(0).type == NodeType.ELEMENT ?
+      NodeType.DOCUMENT_NODE_ELEMENT : type).id();
   }
 
   @Override
@@ -135,11 +136,11 @@ public final class FDoc extends FNode {
 
   @Override
   public void plan(final QueryPlan plan) {
-    plan.add(plan.create(this, QueryText.BASE, uri));
+    plan.add(plan.create(this, BASE, uri));
   }
 
   @Override
-  public String toString() {
-    return Strings.concat(QueryText.DOCUMENT, " { ", uri.length == 0 ? "..." : uri, " }");
+  public void plan(final QueryString qs) {
+    qs.token(DOCUMENT).brace(uri.length == 0 ? DOTS : QueryString.toQuoted(uri));
   }
 }

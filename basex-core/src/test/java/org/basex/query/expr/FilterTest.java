@@ -1,17 +1,19 @@
 package org.basex.query.expr;
 
-import org.basex.*;
+import static org.basex.query.func.Function.*;
+
 import org.basex.core.cmd.*;
+import org.basex.query.ast.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.Test;
 
 /**
  * Tests for optimizations of the filter expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
-public final class FilterTest extends SandboxTest {
+public final class FilterTest extends QueryPlanTest {
   /** Drops a test database. */
   @AfterAll public static void end() {
     execute(new DropDB(NAME));
@@ -269,11 +271,11 @@ public final class FilterTest extends SandboxTest {
   /** Variable predicates. */
   @Test public void variablePreds() {
     // empty sequence
-    query("for $i in (1,'a',2) return <a b='{$i}'/>[$i]", "<a b=\"1\"/>\n<a b=\"a\"/>");
-    query("for $i in (1,'a',2) return <a b='{$i}'/>[<b c='{random:integer()}'/>][$i]",
+    query("for $i in (1,'a',2) return <a b='{ $i }'/>[$i]", "<a b=\"1\"/>\n<a b=\"a\"/>");
+    query("for $i in (1,'a',2) return <a b='{ $i }'/>[<b c='{random:integer()}'/>][$i]",
         "<a b=\"1\"/>\n<a b=\"a\"/>");
     query("for $i in (1,'a',2) "
-        + "return <a b='{$i}'/>[<a b='{random:integer()}'/>][<b c='{random:integer()}'/>][$i]",
+        + "return <a b='{ $i }'/>[<a b='{random:integer()}'/>][<b c='{random:integer()}'/>][$i]",
         "<a b=\"1\"/>\n<a b=\"a\"/>");
   }
 
@@ -303,8 +305,28 @@ public final class FilterTest extends SandboxTest {
     query("db:open('" + NAME + "')[2]", "<two/>");
   }
 
-  /** Start position (GH-1641). */
-  @Test public void nested() {
+  /** Start position. */
+  @Test public void gh1641() {
+    query("(1 to 2)[position() = .]", "1\n2");
+    query("(1 to 2)[position() != .]", "");
     query("((1 to 2)[. != 0])[position() != .]", "");
+  }
+
+  /** Rewrite positional tests. */
+  @Test public void positional() {
+    String expr = "(<a/>, <b/>, <c/>)";
+    check(expr + "[position() = 0 to last()]", "<a/>\n<b/>\n<c/>", empty(LAST));
+    check(expr + "[position() = 1 to last()]", "<a/>\n<b/>\n<c/>", empty(LAST));
+    check(expr + "[position() = 2 to last()]", "<b/>\n<c/>", empty(LAST));
+    check(expr + "[position() = 3 to last()]", "<c/>", empty(LAST));
+    check(expr + "[position() = 1 to last() - 1]", "<a/>\n<b/>", empty(LAST));
+
+    expr = "((<a/>, <b/>, <c/>)[. = ''])";
+    check(expr + "[position() = 0 to last()]", "<a/>\n<b/>\n<c/>", empty(LAST));
+    check(expr + "[position() = 1 to last()]", "<a/>\n<b/>\n<c/>", empty(LAST));
+    check(expr + "[position() = 2 to last()]", "<b/>\n<c/>", empty(LAST));
+    check(expr + "[position() = 3 to last()]", "<c/>", empty(LAST));
+    check(expr + "[position() = 1 to last() - 1]", "<a/>\n<b/>", empty(LAST));
+    check(expr + "[position() = 1 to last() - 2]", "<a/>", exists(LAST));
   }
 }

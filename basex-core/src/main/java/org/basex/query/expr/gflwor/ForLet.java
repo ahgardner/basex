@@ -12,12 +12,12 @@ import org.basex.util.*;
 /**
  * FLWOR {@code for}/{@code let} clause.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
-abstract class ForLet extends Clause {
+public abstract class ForLet extends Clause {
   /** Item variable. */
-  public final Var var;
+  public Var var;
   /** Bound expression. */
   public Expr expr;
   /** Scoring flag. */
@@ -52,7 +52,7 @@ abstract class ForLet extends Clause {
   }
 
   @Override
-  public final boolean inlineable(final Var v) {
+  public final boolean inlineable(final InlineContext v) {
     return expr.inlineable(v);
   }
 
@@ -62,14 +62,20 @@ abstract class ForLet extends Clause {
   }
 
   @Override
-  public final Clause inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-
-    final Expr inlined = expr.inline(ei, ex, cc);
+  public final Clause inline(final InlineContext ic) throws QueryException {
+    final Expr inlined = expr.inline(ic);
     if(inlined == null) return null;
     expr = inlined;
-    return optimize(cc);
+    return optimize(ic.cc);
   }
+
+  /**
+   * Returns an expression that is appropriate for inlining.
+   * @param cc compilation context
+   * @return inlineable expression or {@code null}
+   * @throws QueryException query exception
+   */
+  abstract Expr inlineExpr(CompileContext cc) throws QueryException;
 
   /**
    * Tries to add the given expression as a predicate.
@@ -79,32 +85,37 @@ abstract class ForLet extends Clause {
    * @return success flag
    * @throws QueryException query exception
    */
-  boolean toPredicate(final CompileContext cc, final Expr ex) throws QueryException {
-    if(scoring || !ex.uses(var) || !ex.inlineable(var)) return false;
+  final boolean toPredicate(final CompileContext cc, final Expr ex) throws QueryException {
+    // do not rewrite:
+    //   for $a at $p in (1,2) where $a = 2 return $p
+    //   let score $s := <a/> where not($s) return $s
+    //   let $a as element(a) := <a/> where $a instance of element(b) return $a
+    //   let $a := (<a/>, <b/>) where $a/self::a return $a
+    //   for $a allowing empty in 0 where $a return count($a)
+    if(vars.length != 1 || scoring || var.checksType() || size() != 1 || !ex.uses(var))
+      return false;
+
+    final InlineContext ic = new InlineContext(var, new ContextValue(info), cc);
+    if(!ic.inlineable(ex)) return false;
 
     // reset context value (will not be accessible in predicate)
-    Expr pred = cc.get(expr, () -> {
-      // assign type of iterated items to context expression
-      final Expr inlined = ex.inline(var, new ContextValue(info).optimize(cc), cc);
-      return inlined != null ? inlined : ex;
-    });
+    Expr pred = cc.get(expr, () -> ic.inline(ex));
 
     // attach predicates to axis path or filter, or create a new filter
-    if(pred.seqType().mayBeNumber()) {
-      pred = cc.function(Function.BOOLEAN, info, pred);
-    }
+    // for $i in 1 where $i  ->  for $i in 1[boolean(.)]
+    if(pred.seqType().mayBeNumber()) pred = cc.function(Function.BOOLEAN, info, pred);
 
-    addPredicate(pred, cc);
+    addPredicate(cc, pred);
     return true;
   }
 
   /**
    * Adds a predicate to the looped expression.
-   * @param ex expression to add as predicate
    * @param cc compilation context
+   * @param ex expression to add as predicate
    * @throws QueryException query exception
    */
-  void addPredicate(final Expr ex, final CompileContext cc) throws QueryException {
+  final void addPredicate(final CompileContext cc, final Expr ex) throws QueryException {
     if(expr instanceof AxisPath && !ex.has(Flag.POS)) {
       // add to last step of path, provided that predicate is not positional
       expr = ((AxisPath) expr).addPredicates(cc, ex);

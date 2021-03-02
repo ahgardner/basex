@@ -8,7 +8,7 @@ import org.basex.util.*;
 /**
  * This class assembles textual information for package handling.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public interface PkgText {
@@ -18,7 +18,7 @@ public interface PkgText {
   /** Package descriptor. */
   String DESCRIPTOR = "expath-pkg" + IO.XMLSUFFIX;
   /** Jar descriptor. */
-  String JARDESC = Prop.PROJECT_NAME + IO.XMLSUFFIX;
+  String JARDESC = Prop.PROJECT + IO.XMLSUFFIX;
 
   /** EXPath content directory. */
   String CONTENT = "content";

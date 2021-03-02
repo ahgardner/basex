@@ -12,7 +12,7 @@ import org.basex.query.value.type.*;
 /**
  * Function implementation.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FnRemove extends StandardFunc {
@@ -79,7 +79,7 @@ public final class FnRemove extends StandardFunc {
 
   @Override
   protected Expr opt(final CompileContext cc) throws QueryException {
-    // ignore standard limitation for large values
+    // ignore standard limitation for large values to speed up evaluation of result
     if(allAreValues(false)) return value(cc.qc);
 
     final Expr expr = exprs[0], pos = exprs[1];
@@ -101,7 +101,7 @@ public final class FnRemove extends StandardFunc {
       sz--;
     }
 
-    exprType.assign(st.type, st.occ.union(Occ.ZERO), sz);
+    exprType.assign(st.union(Occ.ZERO), sz);
     data(expr.data());
     return this;
   }

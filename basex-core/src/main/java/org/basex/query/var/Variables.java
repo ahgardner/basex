@@ -15,7 +15,7 @@ import org.basex.util.*;
 /**
  * Container of global variables of a module.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class Variables extends ExprInfo implements Iterable<StaticVar> {
@@ -136,10 +136,8 @@ public final class Variables extends ExprInfo implements Iterable<StaticVar> {
   }
 
   @Override
-  public String toString() {
-    final StringBuilder sb = new StringBuilder();
-    for(final VarEntry ve : vars.values()) sb.append(ve.var);
-    return sb.toString();
+  public void plan(final QueryString qs) {
+    for(final VarEntry ve : vars.values()) qs.token(ve.var);
   }
 
   /** Entry for static variables and their references. */

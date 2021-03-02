@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 /**
  * This class performs local stress tests with a specified number of threads and queries.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class MultipleAddTest extends SandboxTest {
@@ -23,8 +23,7 @@ public final class MultipleAddTest extends SandboxTest {
    * Runs the test.
    * @throws Exception exception
    */
-  @Test
-  public void clients10runs10() throws Exception {
+  @Test public void clients10runs10() throws Exception {
     run(10, 10);
   }
 
@@ -32,8 +31,7 @@ public final class MultipleAddTest extends SandboxTest {
    * Runs the test.
    * @throws Exception exception
    */
-  @Test
-  public void clients10runs100() throws Exception {
+  @Test public void clients10runs100() throws Exception {
     run(10, 100);
   }
 
@@ -41,8 +39,7 @@ public final class MultipleAddTest extends SandboxTest {
    * Runs the test.
    * @throws Exception exception
    */
-  @Test
-  public void clients100runs10() throws Exception {
+  @Test public void clients100runs10() throws Exception {
     run(100, 10);
   }
 
@@ -50,8 +47,7 @@ public final class MultipleAddTest extends SandboxTest {
    * Runs the test.
    * @throws Exception exception
    */
-  @Test
-  public void clients100runs100() throws Exception {
+  @Test public void clients100runs100() throws Exception {
     run(100, 100);
   }
 

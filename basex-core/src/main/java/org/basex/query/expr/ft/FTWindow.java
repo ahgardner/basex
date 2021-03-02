@@ -1,5 +1,7 @@
 package org.basex.query.expr.ft;
 
+import static org.basex.query.QueryText.*;
+
 import org.basex.query.*;
 import org.basex.query.CompileContext.*;
 import org.basex.query.expr.*;
@@ -13,7 +15,7 @@ import org.basex.util.hash.*;
 /**
  * FTWindow expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FTWindow extends FTFilter {
@@ -89,8 +91,8 @@ public final class FTWindow extends FTFilter {
   }
 
   @Override
-  public boolean inlineable(final Var var) {
-    return win.inlineable(var) && super.inlineable(var);
+  public boolean inlineable(final InlineContext ic) {
+    return win.inlineable(ic) && super.inlineable(ic);
   }
 
   @Override
@@ -99,17 +101,16 @@ public final class FTWindow extends FTFilter {
   }
 
   @Override
-  public FTExpr inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-    final boolean anyInlined = inlineAll(ei, ex, exprs, cc);
-    final Expr inlined = win.inline(ei, ex, cc);
+  public FTExpr inline(final InlineContext ic) throws QueryException {
+    final boolean anyInlined = ic.inline(exprs);
+    final Expr inlined = win.inline(ic);
     if(inlined != null) win = inlined;
-    return anyInlined || inlined != null ? optimize(cc) : null;
+    return anyInlined || inlined != null ? optimize(ic.cc) : null;
   }
 
   @Override
   public FTExpr copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new FTWindow(info, exprs[0].copy(cc, vm), win.copy(cc, vm), unit);
+    return copyType(new FTWindow(info, exprs[0].copy(cc, vm), win.copy(cc, vm), unit));
   }
 
   @Override
@@ -126,11 +127,11 @@ public final class FTWindow extends FTFilter {
 
   @Override
   public void plan(final QueryPlan plan) {
-    plan.add(plan.create(this, QueryText.WINDOW, unit), win, exprs);
+    plan.add(plan.create(this, WINDOW, unit), win, exprs);
   }
 
   @Override
-  public String toString() {
-    return super.toString() + QueryText.WINDOW + ' ' + win + ' ' + unit;
+  public void plan(final QueryString qs) {
+    qs.token(exprs[0]).token(WINDOW).token(win).token(unit);
   }
 }

@@ -14,7 +14,6 @@ import org.basex.gui.view.*;
 import org.basex.gui.view.editor.*;
 import org.basex.io.*;
 import org.basex.query.func.*;
-import org.basex.query.value.item.*;
 import org.basex.query.value.node.*;
 import org.basex.query.value.seq.*;
 import org.basex.query.value.type.*;
@@ -24,7 +23,7 @@ import org.basex.util.list.*;
 /**
  * This enumeration encapsulates all commands that are triggered by GUI operations.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public enum GUIMenuCmd implements GUICommand {
@@ -406,12 +405,11 @@ public enum GUIMenuCmd implements GUICommand {
 
       final StringList sl = insert.result;
       final NodeType type = ANode.type(insert.kind);
-      String item = Token.string(type.string()) +
-          " { " + quote(sl.get(0)) + " }";
+      String item = Strings.concat(type.qname().local(), " { ", quote(sl.get(0)), " }");
 
-      if(type == NodeType.ATT || type == NodeType.PI) {
+      if(type == NodeType.ATTRIBUTE || type == NodeType.PROCESSING_INSTRUCTION) {
         item += " { " + quote(sl.get(1)) + " }";
-      } else if(type == NodeType.ELM) {
+      } else if(type == NodeType.ELEMENT) {
         item += " { () }";
       }
 
@@ -798,7 +796,7 @@ public enum GUIMenuCmd implements GUICommand {
   C_HELP(HELP, "F1", false, false) {
     @Override
     public void execute(final GUI gui) {
-      BaseXDialog.browse(gui, Prop.DOC_URL);
+      BaseXDialog.browse(gui, DOCS_URL);
     }
   },
 
@@ -806,7 +804,7 @@ public enum GUIMenuCmd implements GUICommand {
   C_COMMUNITY(COMMUNITY, null, false, false) {
     @Override
     public void execute(final GUI gui) {
-      BaseXDialog.browse(gui, Prop.COMMUNITY_URL);
+      BaseXDialog.browse(gui, COMMUNITY_URL);
     }
   },
 
@@ -814,7 +812,7 @@ public enum GUIMenuCmd implements GUICommand {
   C_UPDATES(CHECK_FOR_UPDATES, null, false, false) {
     @Override
     public void execute(final GUI gui) {
-      BaseXDialog.browse(gui, Prop.UPDATE_URL);
+      BaseXDialog.browse(gui, UPDATE_URL);
     }
   },
 
@@ -991,6 +989,6 @@ public enum GUIMenuCmd implements GUICommand {
    * @return function string
    */
   private static String openPre(final DBNodes nodes, final int index) {
-    return Function._DB_OPEN_PRE.args(Str.get(nodes.data().meta.name), Int.get(nodes.pre(index)));
+    return Function._DB_OPEN_PRE.args(nodes.data().meta.name, nodes.pre(index)).trim();
   }
 }

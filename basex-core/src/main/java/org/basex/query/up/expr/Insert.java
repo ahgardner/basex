@@ -21,7 +21,7 @@ import org.basex.util.hash.*;
 /**
  * Insert expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Lukas Kircher
  */
 public final class Insert extends Update {
@@ -69,13 +69,14 @@ public final class Insert extends Update {
     if(i2 != null) throw (loc ? UPTRGSNGL2_X : UPTRGSNGL_X).get(info,
         ValueBuilder.concat(item, i2, qc));
 
-    final ANode node = (ANode) item;
-    final ANode par = node.parent();
+    final ANode node = (ANode) item, parent = node.parent();
     if(loc) {
-      if(node.type == NodeType.ATT || node.type == NodeType.DOC) throw UPTRGTYP2_X.get(info, node);
-      if(par == null) throw UPPAREMPTY_X.get(info, node);
+      if(node.type.oneOf(NodeType.ATTRIBUTE, NodeType.DOCUMENT_NODE))
+        throw UPTRGTYP2_X.get(info, node);
+      if(parent == null) throw UPPAREMPTY_X.get(info, node);
     } else {
-      if(node.type != NodeType.ELM && node.type != NodeType.DOC) throw UPTRGTYP_X.get(info, node);
+      if(!node.type.oneOf(NodeType.ELEMENT, NodeType.DOCUMENT_NODE))
+        throw UPTRGTYP_X.get(info, node);
     }
 
     NodeUpdate up;
@@ -83,8 +84,8 @@ public final class Insert extends Update {
     // no update primitive is created if node list is empty
     final Updates updates = qc.updates();
     if(!aList.isEmpty()) {
-      final ANode targ = loc ? par : node;
-      if(targ.type != NodeType.ELM) throw (loc ? UPATTELM_X : UPATTELM2_X).get(info, targ);
+      final ANode targ = loc ? parent : node;
+      if(targ.type != NodeType.ELEMENT) throw (loc ? UPATTELM_X : UPATTELM2_X).get(info, targ);
 
       dbn = updates.determineDataRef(targ, qc);
       up = new InsertAttribute(dbn.pre(), dbn.data(), info, checkNS(aList, targ));
@@ -108,7 +109,7 @@ public final class Insert extends Update {
 
   @Override
   public Expr copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new Insert(sc, info, exprs[1].copy(cc, vm), mode, exprs[0].copy(cc, vm));
+    return copyType(new Insert(sc, info, exprs[1].copy(cc, vm), mode, exprs[0].copy(cc, vm)));
   }
 
   @Override
@@ -117,8 +118,8 @@ public final class Insert extends Update {
   }
 
   @Override
-  public String toString() {
-    return QueryText.INSERT + ' ' + QueryText.NODE + ' ' + exprs[1] + ' ' +
-        QueryText.INTO + ' ' + exprs[0];
+  public void plan(final QueryString qs) {
+    qs.token(QueryText.INSERT).token(QueryText.NODES).token(exprs[1]).token(QueryText.INTO).
+      token(exprs[0]);
   }
 }

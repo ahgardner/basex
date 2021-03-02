@@ -5,12 +5,12 @@ import org.basex.util.*;
 /**
  * This class organizes textual information for the XMLDB API.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public interface BXXMLDBText {
   /** DB URI. */
-  String DBURI = Prop.PROJECT_NAME + "://";
+  String DBURI = Prop.PROJECT + "://";
   /** XMLDB Prefix. */
   String XMLDB = "xmldb";
   /** XMLDB with colon. */

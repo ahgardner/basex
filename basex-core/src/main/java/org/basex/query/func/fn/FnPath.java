@@ -16,7 +16,7 @@ import org.basex.util.list.*;
 /**
  * Function implementation.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FnPath extends ContextFn {
@@ -51,21 +51,21 @@ public final class FnPath extends ContextFn {
       // root node: finalize traversal
       final ANode parent = node.parent();
       if(parent == null) {
-        if(node.type != NodeType.DOC) tb.add(ROOT);
+        if(node.type != NodeType.DOCUMENT_NODE) tb.add(ROOT);
         break;
       }
 
       final QNm qname = node.qname();
-      final Type type = node.type;
-      if(type == NodeType.ATT) {
+      final NodeType type = (NodeType) node.type;
+      if(type == NodeType.ATTRIBUTE) {
         tb.add('@').add(qname.id());
-      } else if(type == NodeType.ELM) {
+      } else if(type == NodeType.ELEMENT) {
         tb.add(qname.eqName()).add('[').addInt(element(node, qname, qc)).add(']');
-      } else if(type == NodeType.COM || type == NodeType.TXT) {
-        tb.add(node.seqType().toString()).add('[').addInt(textComment(node, qc)).add(']');
-      } else if(type == NodeType.PI) {
-        tb.add(type.string()).add('(').add(qname.local());
-        tb.add(")[").addInt(pi(node, qname, qc)).add(']');
+      } else if(type == NodeType.COMMENT || type == NodeType.TEXT) {
+        tb.add(type.toString()).add('[').addInt(textComment(node, qc)).add(']');
+      } else if(type == NodeType.PROCESSING_INSTRUCTION) {
+        final String name = type.toString(Token.string(qname.local()));
+        tb.add(name).add('[').addInt(pi(node, qname, qc)).add(']');
       }
       steps.add(tb.next());
       nodes.add(node);
@@ -76,7 +76,7 @@ public final class FnPath extends ContextFn {
     for(int s = steps.size() - 1; s >= 0; --s) {
       tb.add('/').add(steps.get(s));
       node = nodes.get(s);
-      if(node.type == NodeType.ELM) paths.put(node, tb.toArray());
+      if(node.type == NodeType.ELEMENT) paths.put(node, tb.toArray());
     }
     return Str.get(tb.isEmpty() ? Token.SLASH : tb.finish());
   }
@@ -88,7 +88,7 @@ public final class FnPath extends ContextFn {
    * @param qc query context
    * @return index
    */
-  private int element(final ANode node, final QNm qname, final QueryContext qc) {
+  private static int element(final ANode node, final QNm qname, final QueryContext qc) {
     int p = 1;
     final BasicNodeIter iter = node.precedingSiblingIter();
     for(ANode fs; (fs = iter.next()) != null;) {
@@ -105,7 +105,7 @@ public final class FnPath extends ContextFn {
    * @param qc query context
    * @return index
    */
-  private int textComment(final ANode node, final QueryContext qc) {
+  private static int textComment(final ANode node, final QueryContext qc) {
     int p = 1;
     final BasicNodeIter iter = node.precedingSiblingIter();
     for(ANode fs; (fs = iter.next()) != null;) {
@@ -122,7 +122,7 @@ public final class FnPath extends ContextFn {
    * @param qc query context
    * @return index
    */
-  private int pi(final ANode node, final QNm qname, final QueryContext qc) {
+  private static int pi(final ANode node, final QNm qname, final QueryContext qc) {
     final BasicNodeIter iter = node.precedingSiblingIter();
     int p = 1;
     for(ANode fs; (fs = iter.next()) != null;) {

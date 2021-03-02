@@ -3,7 +3,6 @@ package org.basex.core.jobs;
 import static org.basex.query.QueryError.*;
 import static org.basex.util.Token.*;
 
-import java.math.*;
 import java.util.Map.*;
 import java.util.function.*;
 
@@ -11,12 +10,13 @@ import org.basex.core.*;
 import org.basex.query.*;
 import org.basex.query.value.*;
 import org.basex.query.value.item.*;
+import org.basex.server.Log.*;
 import org.basex.util.*;
 
 /**
  * Scheduled XQuery job.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class QueryJob extends Job implements Runnable {
@@ -49,8 +49,8 @@ public final class QueryJob extends Job implements Runnable {
 
     // check when job is to be started
     final JobsOptions opts = job.options;
-    final String start = opts.get(JobsOptions.START);
-    long delay = start == null || start.isEmpty() ? 0 : delay(start, 0, ii);
+    final Item start = time(opts.get(JobsOptions.START), ii);
+    long delay = start == null ? 0 : delay(start, 0, ii);
 
     // check when job is to be repeated
     long interval = 0;
@@ -63,8 +63,8 @@ public final class QueryJob extends Job implements Runnable {
     if(delay < 0) throw JOBS_RANGE_X.get(ii, start);
 
     // check when job is to be stopped
-    final String end = opts.get(JobsOptions.END);
-    final long duration = end == null || end.isEmpty() ? Long.MAX_VALUE : delay(end, delay, ii);
+    final Item end = time(opts.get(JobsOptions.END), ii);
+    final long duration = end == null ? Long.MAX_VALUE : delay(end, delay, ii);
     if(duration <= delay) throw JOBS_RANGE_X.get(ii, end);
 
     // check job results are to be cached
@@ -100,28 +100,53 @@ public final class QueryJob extends Job implements Runnable {
   }
 
   /**
+   * Converts the specified start/end time to an item.
+   * @param string start (integer, dayTimeDuration, dateTime, time); can be {@code null}
+   * @param ii input info
+   * @return item or {@code null}
+   * @throws QueryException query exception
+   */
+  private static Item time(final String string, final InputInfo ii) throws QueryException {
+    // undefined
+    if(string == null || string.isEmpty()) return null;
+    // integer
+    if(string.matches("^\\d+$")) return Int.get(Int.parse(Str.get(string), ii));
+    // dayTimeDuration
+    if(Dur.DTD.matcher(string).matches()) return new DTDur(token(string), ii);
+    // time
+    if(ADate.TIME.matcher(string).matches()) return new Tim(token(string), ii);
+    // dateTime
+    return new Dtm(token(string), ii);
+  }
+
+  /**
    * Returns a delay.
-   * @param string string with dayTimeDuration, date, or dateTime
+   * @param start start (integer, dayTimeDuration, dateTime, time)
    * @param min minimum time
    * @param ii input info
    * @return milliseconds to wait
    * @throws QueryException query exception
    */
-  private static long delay(final String string, final long min, final InputInfo ii)
+  private static long delay(final Item start, final long min, final InputInfo ii)
       throws QueryException {
 
     final QueryDateTime qdt = new QueryDateTime();
     long ms;
-    if(Dur.DTD.matcher(string).matches()) {
-      // dayTimeDuration
-      ms = ms(new DTDur(token(string), ii));
-    } else if(ADate.TIME.matcher(string).matches()) {
+    if(start instanceof Int) {
       // time
-      ms = ms(new DTDur(new Tim(token(string), ii), qdt.time, ii));
-      while(ms <= min) ms += 86400000;
-    } else {
+      ms = start.itr(ii) * 60000;
+      ms -= qdt.time.seconds().multiply(Dec.BD_1000).longValue();
+      while(ms <= min) ms += 3600000;
+    } else if(start instanceof DTDur) {
+      // dayTimeDuration
+      ms = ms((DTDur) start);
+    } else if(start instanceof Dtm) {
       // dateTime
-      ms = ms(new DTDur(new Dtm(token(string), ii), qdt.datm, ii));
+      ms = ms(new DTDur((Dtm) start, qdt.datm, ii));
+    } else {
+      // time
+      ms = ms(new DTDur((Tim) start, qdt.time, ii));
+      while(ms <= min) ms += 86400000;
     }
     return ms;
   }
@@ -132,13 +157,13 @@ public final class QueryJob extends Job implements Runnable {
    * @return milliseconds
    */
   private static long ms(final ADateDur date) {
-    return date.sec.multiply(BigDecimal.valueOf(1000)).longValue();
+    return date.sec.multiply(Dec.BD_1000).longValue();
   }
 
   /**
    * Removes the job from the task list as soon as it has been activated.
    */
-  public void remove() {
+  void remove() {
     remove = true;
   }
 
@@ -147,6 +172,8 @@ public final class QueryJob extends Job implements Runnable {
     final JobContext jc = jc();
     final Context ctx = jc.context;
     final JobsOptions opts = job.options;
+    log(LogType.REQUEST, opts.get(JobsOptions.LOG));
+
     qp = new QueryProcessor(job.query, opts.get(JobsOptions.BASE_URI), ctx);
     try {
       // parse, push and register query. order is important!
@@ -178,8 +205,7 @@ public final class QueryJob extends Job implements Runnable {
       result.exception = XQUERY_UNEXPECTED_X.get(null, ex);
     } finally {
       // close and invalidate query after result has been assigned. order is important!
-      final Boolean cache = opts.get(JobsOptions.CACHE);
-      if(cache != null && cache) {
+      if(Boolean.TRUE.equals(opts.get(JobsOptions.CACHE))) {
         ctx.jobs.scheduleResult(this);
         state(JobState.CACHED);
       } else {
@@ -191,15 +217,36 @@ public final class QueryJob extends Job implements Runnable {
         unregister(ctx);
         popJob();
         qp = null;
-        result.time += jc.performance.ns();
-        // invalidates the performance measurements
-        jc.performance = null;
+        result.time += jc.performance.ns(false);
       }
+
+      // write concluding log entry, invalidate performance measurements
+      if(result.exception != null) {
+        log(LogType.ERROR, result.exception.getLocalizedMessage());
+      } else {
+        log(LogType.OK, null);
+      }
+      jc.performance = null;
 
       if(remove) ctx.jobs.tasks.remove(jc.id());
       if(notify != null) notify.accept(result);
     }
   }
+
+  /**
+   * Creates a log entry.
+   * @param type log type
+   * @param info info string (can be {@code null})
+   */
+  private void log(final LogType type, final String info) {
+    final String log = job.options.get(JobsOptions.LOG);
+    if(log == null || log.isEmpty()) return;
+
+    final JobContext jc = jc();
+    final Context ctx = jc.context;
+    ctx.log.write(type, info, jc.performance, "JOB:" + jc.id(), ctx);
+  }
+
 
   @Override
   public void addLocks() {

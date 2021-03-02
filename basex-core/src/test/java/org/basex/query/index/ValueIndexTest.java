@@ -16,20 +16,12 @@ import org.junit.jupiter.params.provider.ValueSource;
 /**
  * This class tests if value indexes will be used.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class ValueIndexTest extends QueryPlanTest {
   /** Test file. */
   private static final String FILE = "src/test/resources/selective.xml";
-
-  /**
-   * Initializes a test.
-   * @param mainmem main-memory flag
-   */
-  public void before(final boolean mainmem) {
-    set(MainOptions.MAINMEM, mainmem);
-  }
 
   /**
    * Finalizes a test.
@@ -58,7 +50,7 @@ public final class ValueIndexTest extends QueryPlanTest {
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   public void textIndex(final boolean mainmem) {
-    before(mainmem);
+    mainmem(mainmem);
     map().forEach((key, value) -> {
       set(MainOptions.TEXTINCLUDE, key);
       execute(new CreateDB(NAME, FILE));
@@ -75,7 +67,7 @@ public final class ValueIndexTest extends QueryPlanTest {
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   public void attrIndex(final boolean mainmem) {
-    before(mainmem);
+    mainmem(mainmem);
     map().forEach((key, value) -> {
       set(MainOptions.ATTRINCLUDE, key);
       execute(new CreateDB(NAME, FILE));
@@ -107,7 +99,7 @@ public final class ValueIndexTest extends QueryPlanTest {
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   public void textUpdates(final boolean mainmem) {
-    before(mainmem);
+    mainmem(mainmem);
     set(MainOptions.UPDINDEX, true);
 
     set(MainOptions.TEXTINCLUDE, "a");
@@ -134,6 +126,14 @@ public final class ValueIndexTest extends QueryPlanTest {
 
     query("delete node x/a[1]");
     check("//a[text() = 'text']", "", empty());
+  }
+
+  /**
+   * Sets the main memory flag.
+   * @param mainmem main-memory flag
+   */
+  private static void mainmem(final boolean mainmem) {
+    set(MainOptions.MAINMEM, mainmem);
   }
 
   /**

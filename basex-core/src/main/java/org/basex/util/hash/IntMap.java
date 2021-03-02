@@ -9,7 +9,7 @@ import org.basex.util.*;
  * It extends the {@link IntSet} class. All values except for {@link Integer#MIN_VALUE}
  * can be stored as values.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class IntMap extends IntSet {
@@ -27,7 +27,7 @@ public final class IntMap extends IntSet {
    * Constructor with initial capacity.
    * @param capacity array capacity (will be resized to a power of two)
    */
-  public IntMap(final int capacity) {
+  public IntMap(final long capacity) {
     super(capacity);
     values = new int[capacity()];
     values[0] = Integer.MIN_VALUE;

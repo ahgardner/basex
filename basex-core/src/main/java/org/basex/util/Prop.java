@@ -7,6 +7,7 @@ import java.security.*;
 import java.util.*;
 import java.util.Map.*;
 import java.util.concurrent.*;
+import java.util.jar.Attributes;
 
 import org.basex.io.*;
 import org.basex.util.options.*;
@@ -14,46 +15,22 @@ import org.basex.util.options.*;
 /**
  * This class contains constants and system properties which are used all around the project.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class Prop {
   /** Project name. */
   public static final String NAME = "BaseX";
   /** Code version (may contain major, minor and optional patch number). */
-  public static final String VERSION = version("9.4 beta");
-  /** Main author. */
-  public static final String AUTHOR = "Christian Gr\u00FCn";
-  /** Co-authors (1). */
-  public static final String TEAM1 = "Michael Seiferle, Alexander Holupirek";
-  /** Co-authors (2). */
-  public static final String TEAM2 = "Marc H. Scholl, Sabine Teubner, Dominik Abend";
-  /** Entity. */
-  public static final String ENTITY = NAME + " Team";
-  /** Project namespace. */
-  public static final String PROJECT_NAME = NAME.toLowerCase(Locale.ENGLISH);
-  /** URL. */
-  public static final String URL = "http://" + PROJECT_NAME + ".org";
-  /** URL of the community page. */
-  public static final String COMMUNITY_URL = URL + "/open-source";
-  /** URL of the documentation. */
-  public static final String DOC_URL = "http://docs." + PROJECT_NAME + ".org";
-  /** URL of the update page. */
-  public static final String UPDATE_URL = URL + "/products/download/all-downloads/";
-  /** Version URL. */
-  public static final String VERSION_URL = "http://files." + PROJECT_NAME + ".org/version.txt";
-  /** Repository URL. */
-  public static final String REPO_URL = "http://files." + PROJECT_NAME + ".org/modules";
-  /** Mail. */
-  public static final String MAILING_LIST = PROJECT_NAME + "-talk@mailman.uni-konstanz.de";
-  /** Title and version. */
-  public static final String TITLE = NAME + ' ' + VERSION;
+  public static final String VERSION = version("9.5.1 beta");
+
+  /** Project name. */
+  public static final String PROJECT = NAME.toLowerCase(Locale.ENGLISH);
 
   /** System-specific newline string. */
   public static final String NL = System.getProperty("line.separator");
   /** Returns the system's default encoding. */
   public static final String ENCODING = System.getProperty("file.encoding");
-
   /** OS flag (source: {@code http://lopica.sourceforge.net/os.html}). */
   private static final String OS = System.getProperty("os.name");
   /** Flag denoting if OS belongs to Mac family. */
@@ -72,37 +49,28 @@ public final class Prop {
   /** System property for specifying database home directory. */
   public static final String PATH = DBPREFIX + "path";
 
+  /** Application URL. */
+  public static final URL LOCATION = location();
   /** System's temporary directory. */
   public static final String TEMPDIR = dir(System.getProperty("java.io.tmpdir"));
   /** Project home directory. */
   public static final String HOMEDIR;
-  /** Application URL. */
-  public static final URL LOCATION;
 
   /** Global options, assigned by the starter classes and the web.xml context parameters. */
   private static final Map<String, String> OPTIONS = new ConcurrentHashMap<>();
 
   // determine project home directory for storing property files and directories...
   static {
-    // retrieve application URL
-    URL location = null;
-    final ProtectionDomain pd = Prop.class.getProtectionDomain();
-    if(pd != null) {
-      final CodeSource cs = pd.getCodeSource();
-      if(cs != null) location = cs.getLocation();
-    }
-    LOCATION = location;
-
     // check system property 'org.basex.path'
     String homedir = System.getProperty(PATH);
     // check if current working directory contains configuration file
     if(homedir == null) homedir = configDir(System.getProperty("user.dir"));
     // check if application directory contains configuration file
-    if(homedir == null) homedir = configDir(applicationDir(location));
+    if(homedir == null) homedir = configDir(applicationDir(LOCATION));
     // fallback: choose home directory (linux: check HOME variable, GH-773)
     if(homedir == null) {
       final String home = WIN ? null : System.getenv("HOME");
-      homedir = dir(home != null ? home : System.getProperty("user.home")) + PROJECT_NAME;
+      homedir = dir(home != null ? home : System.getProperty("user.home")) + PROJECT;
     }
     HOMEDIR = dir(homedir);
   }
@@ -164,13 +132,26 @@ public final class Prop {
   }
 
   /**
-   * Build version string using data from the JAR manifest.
+   * Retrieves the location of the application.
+   * @return application URL, or {@code null} if not available
+   */
+  private static URL location() {
+    final ProtectionDomain pd = Prop.class.getProtectionDomain();
+    if(pd != null) {
+      final CodeSource cs = pd.getCodeSource();
+      if(cs != null) return cs.getLocation();
+    }
+    return null;
+  }
+
+  /**
+   * Returns a build version string using data from the JAR manifest.
    * @param devVersion version used during development;
-   *        returned if there is no implementation version or no manifest.
+   *        returned if there is no implementation version or no manifest
    * @return version string
    */
   private static String version(final String devVersion) {
-    final String version = Prop.class.getPackage().getImplementationVersion();
+    final String version = JarManifest.get(Attributes.Name.IMPLEMENTATION_VERSION);
     if(version == null) return devVersion;
     if(!version.contains("-SNAPSHOT")) return version;
 

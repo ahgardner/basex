@@ -8,7 +8,7 @@ import org.junit.jupiter.api.*;
 /**
  * Basic HTTP authentication tests.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class BasicAuthTest extends AuthTest {
@@ -38,6 +38,6 @@ public final class BasicAuthTest extends AuthTest {
    * Access denied.
    */
   @Test public void accessDenied() {
-    test(REST_ROOT.replace("://", "://user:unknown@"), Text.ACCESS_DENIED);
+    test(REST_ROOT.replace("://", "://user:unknown@"), Util.info(Text.ACCESS_DENIED_X, "user"));
   }
 }

@@ -10,7 +10,7 @@ import org.basex.util.*;
 /**
  * An array containing more elements than fit into a {@link SmallArray}.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 final class BigArray extends XQArray {
@@ -216,23 +216,23 @@ final class BigArray extends XQArray {
   }
 
   @Override
-  public XQArray put(final long pos, final Value val) {
+  public XQArray put(final long pos, final Value value) {
     long p = pos;
     if(p < left.length) {
       final Value[] newLeft = left.clone();
-      newLeft[(int) p] = val;
+      newLeft[(int) p] = value;
       return new BigArray(newLeft, middle, right);
     }
     p -= left.length;
 
     final long m = middle.size();
     if(p < m) {
-      return new BigArray(left, middle.set(p, val), right);
+      return new BigArray(left, middle.set(p, value), right);
     }
     p -= m;
 
     final Value[] newRight = right.clone();
-    newRight[(int) p] = val;
+    newRight[(int) p] = value;
     return new BigArray(left, middle, newRight);
   }
 
@@ -649,17 +649,15 @@ final class BigArray extends XQArray {
   }
 
   @Override
-  XQArray consSmall(final Value[] values) {
+  XQArray prepend(final SmallArray array) {
+    final Value[] values = array.elems;
     final int a = values.length, b = left.length, n = a + b;
-    if(n <= MAX_DIGIT) {
-      // no need to change the middle tree
-      return new BigArray(concat(values, left), middle, right);
-    }
 
-    if(a >= MIN_DIGIT && MIN_LEAF <= b && b <= MAX_LEAF) {
-      // reuse the arrays
+    // no need to change the middle tree
+    if(n <= MAX_DIGIT) return new BigArray(concat(values, left), middle, right);
+    // reuse the arrays
+    if(a >= MIN_DIGIT && MIN_LEAF <= b && b <= MAX_LEAF)
       return new BigArray(values, middle.cons(new LeafNode(left)), right);
-    }
 
     // left digit is too big
     final int mid = n / 2, move = mid - a;

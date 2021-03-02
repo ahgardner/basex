@@ -7,16 +7,16 @@ import org.basex.util.*;
 /**
  * Sequence range.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class SeqRange {
   /** Start position (inclusive, starting from 0). */
-  long start;
+  public long start;
   /** End position (exclusive, starting from 0, larger than or equal to start). */
-  long end;
+  public long end;
   /** Length (larger than or equal to 0). */
-  long length;
+  public long length;
 
   /**
    * Constructor.
@@ -34,7 +34,7 @@ public final class SeqRange {
    * @return range or {@code null}
    * @throws QueryException query exception
    */
-  static SeqRange get(final Expr expr, final CompileContext cc) throws QueryException {
+  public static SeqRange get(final Expr expr, final CompileContext cc) throws QueryException {
     // check if expression is fn:subsequence or util:range
     return expr instanceof FnSubsequence ? ((FnSubsequence) expr).range(cc) : null;
   }

@@ -5,7 +5,7 @@ import org.basex.util.options.*;
 /**
  * Jobs options.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class JobsOptions extends Options {
@@ -23,4 +23,6 @@ public final class JobsOptions extends Options {
   public static final StringOption ID = new StringOption("id");
   /** Register as service. */
   public static final BooleanOption SERVICE = new BooleanOption("service");
+  /** Log entry. */
+  public static final StringOption LOG = new StringOption("log");
 }

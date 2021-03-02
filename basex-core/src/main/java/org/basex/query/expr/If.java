@@ -1,11 +1,11 @@
 package org.basex.query.expr;
 
-import static org.basex.query.QueryText.*;
+import static org.basex.query.func.Function.*;
 
 import org.basex.data.*;
 import org.basex.query.*;
 import org.basex.query.CompileContext.*;
-import org.basex.query.func.*;
+import org.basex.query.expr.CmpG.*;
 import org.basex.query.iter.*;
 import org.basex.query.util.*;
 import org.basex.query.value.*;
@@ -19,7 +19,7 @@ import org.basex.util.hash.*;
 /**
  * If expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class If extends Arr {
@@ -64,7 +64,7 @@ public final class If extends Arr {
         exprs[e] = exprs[e].compile(cc);
       } catch(final QueryException ex) {
         // replace original expression with error
-        exprs[e] = cc.error(ex, this);
+        exprs[e] = cc.error(ex, exprs[e]);
       }
     }
     return optimize(cc);
@@ -72,16 +72,16 @@ public final class If extends Arr {
 
   @Override
   public Expr optimize(final CompileContext cc) throws QueryException {
-    if(Function.EMPTY.is(cond)) {
+    if(EMPTY.is(cond)) {
       // if(empty(A)) then B else C  ->  if(exists(A)) then C else B
-      cond = cc.function(Function.EXISTS, info, ((Arr) cond).exprs[0]);
+      cond = cc.function(EXISTS, info, cond.arg(0));
       swap();
-      cc.info(OPTSWAP_X, this);
-    } else if(Function.NOT.is(cond)) {
+      cc.info(QueryText.OPTSWAP_X, this);
+    } else if(NOT.is(cond)) {
       // if(not(A)) then B else C  ->  if(A) then C else B
-      cond = ((Arr) cond).exprs[0];
+      cond = cond.arg(0);
       swap();
-      cc.info(OPTSWAP_X, this);
+      cc.info(QueryText.OPTSWAP_X, this);
     }
     // if(exists(nodes))  ->  if(nodes)
     cond = cond.simplifyFor(Simplify.EBV, cc);
@@ -99,35 +99,51 @@ public final class If extends Arr {
     // choose static branch at compile time
     if(cond instanceof Value) return expr(cc.qc);
 
-    // if(A) then B else B  ->  B (errors in A will be ignored)
+    // if(...empty sequence...) then A else B  ->  B
     final Expr br1 = exprs[0], br2 = exprs[1];
-    if(br1.equals(br2)) return cond.has(Flag.NDT) ?
-      new List(info, cc.function(Function._PROF_VOID, info, cond), br1).optimize(cc) : br1;
+    final SeqType ct = cond.seqType();
+    final boolean ndt = cond.has(Flag.NDT);
+    if(ct.zero() && !ndt) return br2;
+
+    // rewrite to elvis operator:
+    //   if(exists(VALUE)) then VALUE else DEFAULT  ->  VALUE ?: DEFAULT
+    //   if(NODES) then NODES else DEFAULT  ->  NODES ?: DEFAULT
+    final Expr cmp = EXISTS.is(cond) ? cond.arg(0) :
+      ct.type instanceof NodeType ? cond : null;
+    if(!ndt && cmp != null && cmp.equals(br1)) return
+        cc.function(_UTIL_OR, info, br1, br2);
+
+    // if(A) then B else B  ->  B (errors in A will be ignored)
+    if(br1.equals(br2)) return cc.merge(cond, br1, info);
 
     // determine type
     final SeqType st1 = br1.seqType(), st2 = br2.seqType();
     exprType.assign(st1.union(st2));
 
     // logical rewritings
-    if(st1.eq(SeqType.BLN_O) && st2.eq(SeqType.BLN_O)) {
+    if(st1.eq(SeqType.BOOLEAN_O) && st2.eq(SeqType.BOOLEAN_O)) {
       if(br1 == Bln.TRUE) return br2 == Bln.FALSE ?
         // if(A) then true() else false()  ->  boolean(A)
-        cc.function(Function.BOOLEAN, info, cond) :
+        cc.function(BOOLEAN, info, cond) :
         // if(A) then true() else C  ->  A or C
         new Or(info, cond, br2).optimize(cc);
       if(br2 == Bln.TRUE) return br1 == Bln.FALSE ?
         // if(A) then false() else true()  ->  not(A)
-        cc.function(Function.NOT, info, cond) :
+        cc.function(NOT, info, cond) :
         // if(A) then B else true()  ->  not(A) or B
-        new Or(info, cc.function(Function.NOT, info, cond), br1).optimize(cc);
+        new Or(info, cc.function(NOT, info, cond), br1).optimize(cc);
       // if(A) then false() else C  ->  not(A) and C
       if(br1 == Bln.FALSE) return
-        new And(info, cc.function(Function.NOT, info, cond), br2).optimize(cc);
+        new And(info, cc.function(NOT, info, cond), br2).optimize(cc);
       // if(A) then B else false()  ->  A and B
       if(br2 == Bln.FALSE) return
         new And(info, cond, br1).optimize(cc);
-    }
 
+      if(contradict(br1, br2, false)) return new CmpG(
+          cc.function(BOOLEAN, info, cond), br1, OpG.EQ, null, cc.sc(), info).optimize(cc);
+      if(contradict(br2, br1, false)) return new CmpG(
+          cc.function(BOOLEAN, info, cond), br2, OpG.NE, null, cc.sc(), info).optimize(cc);
+    }
     return this;
   }
 
@@ -171,8 +187,8 @@ public final class If extends Arr {
   }
 
   @Override
-  public boolean inlineable(final Var var) {
-    return cond.inlineable(var) && super.inlineable(var);
+  public boolean inlineable(final InlineContext ic) {
+    return cond.inlineable(ic) && super.inlineable(ic);
   }
 
   @Override
@@ -181,33 +197,19 @@ public final class If extends Arr {
   }
 
   @Override
-  public Expr inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-    boolean changed = false;
-    Expr inlined = cond.inline(ei, ex, cc);
+  public Expr inline(final InlineContext ic) throws QueryException {
+    boolean changed = ic.inline(exprs, true);
+    final Expr inlined = cond.inline(ic);
     if(inlined != null) {
-      cond = inlined;
       changed = true;
+      cond = inlined;
     }
-    final int el = exprs.length;
-    for(int e = 0; e < el; e++) {
-      try {
-        inlined = exprs[e].inline(ei, ex, cc);
-      } catch(final QueryException qe) {
-        inlined = cc.error(qe, this);
-      }
-      if(inlined != null) {
-        exprs[e] = inlined;
-        changed = true;
-      }
-    }
-    return changed ? optimize(cc) : null;
+    return changed ? optimize(ic.cc) : null;
   }
 
   @Override
   public If copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return copyType(new If(info, cond.copy(cc, vm), exprs[0].copy(cc, vm),
-        exprs[1].copy(cc, vm)));
+    return copyType(new If(info, cond.copy(cc, vm), exprs[0].copy(cc, vm), exprs[1].copy(cc, vm)));
   }
 
   @Override
@@ -258,7 +260,7 @@ public final class If extends Arr {
       } catch(final QueryException qe) {
         expr = cc.error(qe, expr);
       }
-      if(expr != exprs[e]) {
+      if(expr != null) {
         changed = true;
         exprs[e] = expr;
       }
@@ -268,8 +270,7 @@ public final class If extends Arr {
 
   @Override
   public boolean equals(final Object obj) {
-    return this == obj || obj instanceof If && cond.equals(((If) obj).cond) &&
-        super.equals(obj);
+    return this == obj || obj instanceof If && cond.equals(((If) obj).cond) && super.equals(obj);
   }
 
   @Override
@@ -278,7 +279,8 @@ public final class If extends Arr {
   }
 
   @Override
-  public String toString() {
-    return IF + '(' + cond + ") " + THEN + ' ' + exprs[0] + ' ' + ELSE + ' ' + exprs[1];
+  public void plan(final QueryString qs) {
+    qs.token("(").token(QueryText.IF).paren(cond).token(QueryText.THEN).token(exprs[0]);
+    qs.token(QueryText.ELSE).token(exprs[1]).token(')');
   }
 }

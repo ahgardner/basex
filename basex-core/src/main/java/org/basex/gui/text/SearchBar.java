@@ -16,7 +16,7 @@ import org.basex.util.*;
 /**
  * This panel provides search and replace facilities.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class SearchBar extends BaseXBack {
@@ -138,9 +138,9 @@ public final class SearchBar extends BaseXBack {
     cls.addKeyListener(keys);
 
     rplc.addActionListener(e -> {
+      deactivate(true);
       final String in = replace.getText();
       editor.replace(new ReplaceContext(regex.isSelected() ? decode(in) : in));
-      deactivate(true);
     });
     cls.addActionListener(e -> deactivate(true));
 
@@ -241,12 +241,14 @@ public final class SearchBar extends BaseXBack {
    * @return {@code true} if panel was closed
    */
   public boolean deactivate(final boolean close) {
+    final boolean closing = close && isVisible();
+    if(closing) {
+      setVisible(false);
+      if(search != null) search.setSelected(false);
+      search();
+    }
     editor.requestFocusInWindow();
-    if(!close || !isVisible()) return false;
-    setVisible(false);
-    if(search != null) search.setSelected(false);
-    search();
-    return true;
+    return closing;
   }
 
   /**
@@ -261,7 +263,7 @@ public final class SearchBar extends BaseXBack {
   /**
    * Searches text in the current editor.
    */
-  public void search() {
+  private void search() {
     final boolean sel = regex.isSelected();
     multi.setEnabled(sel);
     word.setEnabled(!sel);

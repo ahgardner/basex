@@ -16,7 +16,7 @@ import org.basex.util.hash.*;
 /**
  * FTOr expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  * @author Sebastian Gath
  */
@@ -115,7 +115,7 @@ public final class FTOr extends FTExpr {
 
   @Override
   public FTExpr copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new FTOr(info, Arr.copyAll(cc, vm, exprs));
+    return copyType(new FTOr(info, Arr.copyAll(cc, vm, exprs)));
   }
 
   @Override
@@ -124,7 +124,7 @@ public final class FTOr extends FTExpr {
   }
 
   @Override
-  public String toString() {
-    return PAREN1 + toString(' ' + FTOR + ' ') + PAREN2;
+  public void plan(final QueryString qs) {
+    qs.tokens(exprs, ' ' + FTOR + ' ', true);
   }
 }

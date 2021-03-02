@@ -14,7 +14,7 @@ import org.basex.util.list.*;
 /**
  * Document test for inverted location paths.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 final class InvDocTest extends Test {
@@ -29,7 +29,7 @@ final class InvDocTest extends Test {
    * @param data data reference
    */
   private InvDocTest(final IntList pres, final Data data) {
-    super(NodeType.DOC);
+    super(NodeType.DOCUMENT_NODE);
     this.pres = pres;
     this.data = data;
   }
@@ -65,17 +65,17 @@ final class InvDocTest extends Test {
   }
 
   @Override
+  public Test copy() {
+    return new InvDocTest(pres, data);
+  }
+
+  @Override
   public boolean matches(final ANode node) {
     // no database node
     if(!(node instanceof DBNode)) return false;
     // ensure that the pre value is contained in the target documents
     final DBNode db = (DBNode) node;
     return data == db.data() && pres.sortedIndexOf(db.pre()) >= 0;
-  }
-
-  @Override
-  public Test copy() {
-    return new InvDocTest(pres, data);
   }
 
   @Override
@@ -91,7 +91,7 @@ final class InvDocTest extends Test {
   }
 
   @Override
-  public String toString() {
-    return Strings.concat(NodeType.DOC.string(), "(...)");
+  public String toString(final boolean full) {
+    return NodeType.DOCUMENT_NODE.toString("(: ids :)");
   }
 }

@@ -15,10 +15,10 @@ import org.basex.util.*;
 /**
  * A small sequence that is represented as a single Java array.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
-final class SmallSeq extends TreeSeq {
+public final class SmallSeq extends TreeSeq {
   /** The elements. */
   final Item[] items;
 
@@ -54,9 +54,9 @@ final class SmallSeq extends TreeSeq {
     out[p] = item;
     Array.copy(items, p, n - p, out, p + 1);
 
-    if(n < MAX_SMALL) return new SmallSeq(out, null);
-    return new BigSeq(slice(out, 0, MIN_DIGIT), FingerTree.empty(),
-        slice(out, MIN_DIGIT, n + 1), null);
+    final Type tp = type.union(item.type);
+    return n < MAX_SMALL ? new SmallSeq(out, tp) :
+      new BigSeq(slice(out, 0, MIN_DIGIT), FingerTree.empty(), slice(out, MIN_DIGIT, n + 1), tp);
   }
 
   @Override
@@ -78,7 +78,7 @@ final class SmallSeq extends TreeSeq {
 
   @Override
   public TreeSeq concat(final TreeSeq other) {
-    return other.consSmall(items);
+    return other.prepend(this);
   }
 
   @Override
@@ -154,20 +154,21 @@ final class SmallSeq extends TreeSeq {
   }
 
   @Override
-  TreeSeq consSmall(final Item[] left) {
-    final int l = left.length, r = items.length, n = l + r;
-    if(Math.min(l, r) >= MIN_DIGIT) {
-      // both arrays can be used as digits
-      return new BigSeq(left, FingerTree.empty(), items, null);
-    }
+  TreeSeq prepend(final SmallSeq seq) {
+    final Type tp = type.union(seq.type);
+    final Item[] values = seq.items;
+    final int a = values.length, b = items.length, n = a + b;
+
+    // both arrays can be used as digits
+    if(Math.min(a, b) >= MIN_DIGIT) return new BigSeq(values, FingerTree.empty(), items, tp);
 
     final Item[] out = new Item[n];
-    Array.copy(left, l, out);
-    Array.copyFromStart(items, r, out, l);
-    if(n <= MAX_SMALL) return new SmallSeq(out, null);
+    Array.copy(values, a, out);
+    Array.copyFromStart(items, b, out, a);
+    if(n <= MAX_SMALL) return new SmallSeq(out, tp);
 
     final int mid = n / 2;
-    return new BigSeq(slice(out, 0, mid), FingerTree.empty(), slice(out, mid, n), null);
+    return new BigSeq(slice(out, 0, mid), FingerTree.empty(), slice(out, mid, n), tp);
   }
 
   @Override

@@ -10,7 +10,7 @@ import org.basex.core.*;
  * As specified by W3C, the values of the attribute are language identifiers as
  * defined by IETF BCP 47, Tags for the Identification of Languages.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Dimitar Popov
  * @author Jens Erat
  *
@@ -26,6 +26,8 @@ public final class Language implements Comparable<Language> {
   static final HashMap<String, Language> ALL = new HashMap<>();
   /** Available languages, indexed by their display. */
   private static final HashMap<String, Language> DISP = new HashMap<>();
+  /** Locale. */
+  private final Locale locale;
 
   static {
     for(final Locale l : Locale.getAvailableLocales()) {
@@ -33,8 +35,6 @@ public final class Language implements Comparable<Language> {
       DISP.put(l.getDisplayLanguage(Locale.ENGLISH), new Language(l));
     }
   }
-  /** Locale. */
-  private final Locale locale;
 
   /**
    * Private Constructor.

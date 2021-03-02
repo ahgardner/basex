@@ -6,14 +6,13 @@ import static org.basex.util.Token.*;
 import org.basex.query.*;
 import org.basex.query.value.item.*;
 import org.basex.query.value.type.*;
-import org.basex.util.*;
 import org.basex.util.list.*;
 import org.w3c.dom.*;
 
 /**
  * Attribute node fragment.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FAttr extends FNode {
@@ -46,7 +45,7 @@ public final class FAttr extends FNode {
    * @param value value
    */
   public FAttr(final QNm name, final byte[] value) {
-    super(NodeType.ATT);
+    super(NodeType.ATTRIBUTE);
     this.name = name;
     this.value = value;
   }
@@ -82,8 +81,7 @@ public final class FAttr extends FNode {
 
   @Override
   public boolean equals(final Object obj) {
-    return this == obj || obj instanceof FAttr && name.eq(((FAttr) obj).name) &&
-        super.equals(obj);
+    return this == obj || obj instanceof FAttr && name.eq(((FAttr) obj).name) && super.equals(obj);
   }
 
   @Override
@@ -92,7 +90,7 @@ public final class FAttr extends FNode {
   }
 
   @Override
-  public String toString() {
-    return Strings.concat(name.string(), '=', toQuotedToken(value));
+  public void plan(final QueryString qs) {
+    qs.concat(name.string(), "=", QueryString.toQuoted(value));
   }
 }

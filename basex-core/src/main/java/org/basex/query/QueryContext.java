@@ -43,7 +43,7 @@ import org.basex.util.list.*;
  * This class organizes both static and dynamic properties that are specific to a
  * single query.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class QueryContext extends Job implements Closeable {
@@ -94,10 +94,8 @@ public final class QueryContext extends Job implements Closeable {
   /** Available collations. */
   public TokenObjMap<Collation> collations;
 
-  /** Strings to lock defined by read-lock option. */
-  public final LockList readLocks = new LockList();
-  /** Strings to lock defined by write-lock option. */
-  public final LockList writeLocks = new LockList();
+  /** User-defined locks. */
+  public final LockList locks = new LockList();
 
   /** Number of successive tail calls. */
   public int tailCalls;
@@ -311,7 +309,7 @@ public final class QueryContext extends Job implements Closeable {
       try {
         // compile the expression
         if(root != null) QueryCompiler.compile(cc, root);
-        // compile global functions.
+        // compile static functions
         else funcs.compile(cc);
       } catch(final StackOverflowError ex) {
         Util.debug(ex);
@@ -365,14 +363,16 @@ public final class QueryContext extends Job implements Closeable {
 
   @Override
   public void addLocks() {
-    final Locks locks = jc().locks;
-    final LockList read = locks.reads, write = locks.writes;
-    read.add(readLocks);
-    write.add(writeLocks);
-    // use global locking if referenced databases cannot be statically determined
-    if(root == null || !root.databases(locks, this) ||
-       ctxItem != null && !ctxItem.databases(locks, this)) {
-      (updating ? write : read).addGlobal();
+    // choose read or write locks
+    final Locks l = jc().locks;
+    final LockList list = updating ? l.writes : l.reads;
+
+    if(root == null || !root.databases(l, this) || ctxItem != null && !ctxItem.databases(l, this)) {
+      // use global locking if referenced databases cannot statically be determined
+      list.addGlobal();
+    } else {
+      // add custom locks
+      list.add(locks);
     }
   }
 
@@ -562,11 +562,11 @@ public final class QueryContext extends Job implements Closeable {
   /**
    * Binds an expression to a local variable.
    * @param var variable
-   * @param val expression to be bound
+   * @param value expression to be bound
    * @throws QueryException exception
    */
-  public void set(final Var var, final Value val) throws QueryException {
-    stack.set(var, val, this);
+  public void set(final Var var, final Value value) throws QueryException {
+    stack.set(var, value, this);
   }
 
   /**
@@ -756,7 +756,7 @@ public final class QueryContext extends Job implements Closeable {
       try {
         final JsonParserOptions jp = new JsonParserOptions();
         jp.set(JsonOptions.FORMAT, JsonFormat.XQUERY);
-        return JsonConverter.get(jp).convert(token(object.toString()), "");
+        return JsonConverter.get(jp).convert(object.toString(), "");
       } catch(final QueryIOException ex) {
         throw ex.getCause();
       }
@@ -772,7 +772,7 @@ public final class QueryContext extends Job implements Closeable {
 
     Type tp;
     if(Strings.endsWith(type, ')')) {
-      tp = nm.eq(AtomType.ITEM.name) ? AtomType.ITEM : NodeType.find(nm);
+      tp = nm.eq(AtomType.ITEM.qname()) ? AtomType.ITEM : NodeType.find(nm);
       if(tp == null) tp = FuncType.find(nm);
     } else {
       tp = ListType.find(nm);

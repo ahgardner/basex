@@ -25,7 +25,7 @@ import org.basex.util.hash.*;
 /**
  * Inline function.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class Closure extends Single implements Scope, XQFunctionExpr {
@@ -78,7 +78,7 @@ public final class Closure extends Single implements Scope, XQFunctionExpr {
    */
   Closure(final InputInfo info, final QNm name, final SeqType declType, final Var[] params,
       final Expr expr, final AnnList anns, final Map<Var, Expr> global, final VarScope vs) {
-    super(info, expr, SeqType.FUNC_O);
+    super(info, expr, SeqType.FUNCTION_O);
     this.name = name;
     this.params = params;
     this.declType = declType == null || declType.eq(SeqType.ITEM_ZM) ? null : declType;
@@ -125,10 +125,10 @@ public final class Closure extends Single implements Scope, XQFunctionExpr {
     checkUpdating();
 
     // compile closure
-    for(final Entry<Var, Expr> e : global.entrySet()) {
-      final Expr bound = e.getValue().compile(cc);
-      e.setValue(bound);
-      e.getKey().refineType(bound.seqType(), cc);
+    for(final Entry<Var, Expr> entry : global.entrySet()) {
+      final Expr bound = entry.getValue().compile(cc);
+      entry.setValue(bound);
+      entry.getKey().refineType(bound.seqType(), cc);
     }
 
     cc.pushScope(vs);
@@ -158,11 +158,11 @@ public final class Closure extends Single implements Scope, XQFunctionExpr {
         final Entry<Var, Expr> entry = iter.next();
         final Var var = entry.getKey();
         final Expr ex = entry.getValue();
+
+        Expr inline = null;
         if(ex instanceof Value) {
           // values are always inlined into the closure
-          final Expr inlined = expr.inline(var, var.checkType((Value) ex, cc.qc, true), cc);
-          if(inlined != null) expr = inlined;
-          iter.remove();
+          inline = var.checkType((Value) ex, cc.qc, true);
         } else if(ex instanceof Closure) {
           // nested closures are inlined if their size and number of closed-over variables is small
           final Closure cl = (Closure) ex;
@@ -173,13 +173,14 @@ public final class Closure extends Single implements Scope, XQFunctionExpr {
               final Var var2 = cc.copy(expr2.getKey(), null);
               if(add == null) add = new HashMap<>();
               add.put(var2, expr2.getValue());
-              expr2.setValue(new VarRef(cl.info, var2));
+              expr2.setValue(new VarRef(cl.info, var2).optimize(cc));
             }
-
-            final Expr inlined = expr.inline(var, cl, cc);
-            if(inlined != null) expr = inlined;
-            iter.remove();
+            inline = cl;
           }
+        }
+        if(inline != null) {
+          expr = new InlineContext(var, inline, cc).inline(expr);
+          iter.remove();
         }
       }
       // add all newly added bindings
@@ -194,31 +195,37 @@ public final class Closure extends Single implements Scope, XQFunctionExpr {
     final SeqType dt = declType == null || st.instanceOf(declType) ? st : declType;
     exprType.assign(FuncType.get(anns, dt, params));
 
-    // only evaluate if the closure is empty, so we don't lose variables
-    return global.isEmpty() ? cc.preEval(this) : this;
+    // only evaluate if:
+    // - the closure is empty, so we don't lose variables
+    // - the result size does not exceed a specific limit
+    return global.isEmpty() && expr.size() <= CompileContext.MAX_PREEVAL ?
+      cc.preEval(this) : this;
   }
 
   @Override
   public VarUsage count(final Var var) {
     VarUsage all = VarUsage.NEVER;
-    for(final Entry<Var, Expr> e : global.entrySet()) {
-      if((all = all.plus(e.getValue().count(var))) == VarUsage.MORE_THAN_ONCE) break;
+    for(final Expr ex : global.values()) {
+      if((all = all.plus(ex.count(var))) == VarUsage.MORE_THAN_ONCE) break;
     }
     return all;
   }
 
   @Override
-  public Expr inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
+  public Expr inline(final InlineContext ic) throws QueryException {
     boolean changed = false;
     for(final Entry<Var, Expr> entry : global.entrySet()) {
-      final Expr inlined = entry.getValue().inline(ei, ex, cc);
+      final Expr inlined = entry.getValue().inline(ic);
       if(inlined != null) {
         changed = true;
         entry.setValue(inlined);
       }
     }
-    return changed ? optimize(cc) : null;
+    if(!changed) return null;
+
+    // invalidate cached flags, optimize closure
+    map.clear();
+    return optimize(ic.cc);
   }
 
   @Override
@@ -250,7 +257,7 @@ public final class Closure extends Single implements Scope, XQFunctionExpr {
 
   @Override
   public Expr inline(final Expr[] exprs, final CompileContext cc) throws QueryException {
-    if(expr.has(Flag.CTX)) return null;
+    if(!StaticFunc.inline(cc, anns, expr) || expr.has(Flag.CTX)) return null;
 
     cc.info(OPTINLINE_X, this);
 
@@ -261,8 +268,8 @@ public final class Closure extends Single implements Scope, XQFunctionExpr {
     for(int p = 0; p < pl; p++) {
       clauses.add(new Let(cc.copy(params[p], vm), exprs[p]).optimize(cc));
     }
-    for(final Entry<Var, Expr> e : global.entrySet()) {
-      clauses.add(new Let(cc.copy(e.getKey(), vm), e.getValue()).optimize(cc));
+    for(final Entry<Var, Expr> entry : global.entrySet()) {
+      clauses.add(new Let(cc.copy(entry.getKey(), vm), entry.getValue()).optimize(cc));
     }
 
     // create the return clause
@@ -314,17 +321,24 @@ public final class Closure extends Single implements Scope, XQFunctionExpr {
 
   @Override
   public boolean has(final Flag... flags) {
-    // handle recursive calls: check which flags have already been assigned
+    // closure does not perform any updates
+    if(Flag.UPD.in(flags)) return false;
+
+    // handle recursive calls: check which flags are already or currently assigned
     final ArrayList<Flag> flgs = new ArrayList<>();
     for(final Flag flag : flags) {
       if(!map.containsKey(flag)) {
-        map.put(flag, false);
-        // skip updating flag (function itself does not perform any updates)
-        if(flag != Flag.UPD) flgs.add(flag);
+        map.put(flag, Boolean.FALSE);
+        flgs.add(flag);
       }
     }
-    // cache flags for remaining, new properties
-    for(final Flag flag : flgs) map.put(flag, expr.has(flag));
+    // request missing properties
+    for(final Flag flag : flgs) {
+      boolean f = false;
+      for(final Expr ex : global.values()) f = f || ex.has(flag);
+      map.put(flag, f || expr.has(flag));
+    }
+
     // evaluate result
     for(final Flag flag : flags) {
       if(map.get(flag)) return true;
@@ -333,17 +347,17 @@ public final class Closure extends Single implements Scope, XQFunctionExpr {
   }
 
   @Override
-  public boolean inlineable(final Var var) {
-    for(final Entry<Var, Expr> e : global.entrySet()) {
-      if(!e.getValue().inlineable(var)) return false;
+  public boolean inlineable(final InlineContext ic) {
+    for(final Expr ex : global.values()) {
+      if(!ex.inlineable(ic)) return false;
     }
     return true;
   }
 
   @Override
   public boolean visit(final ASTVisitor visitor) {
-    for(final Entry<Var, Expr> v : global.entrySet()) {
-      if(!(v.getValue().accept(visitor) && visitor.declared(v.getKey()))) return false;
+    for(final Entry<Var, Expr> entry : global.entrySet()) {
+      if(!(entry.getValue().accept(visitor) && visitor.declared(entry.getKey()))) return false;
     }
     for(final Var var : params) {
       if(!visitor.declared(var)) return false;
@@ -470,24 +484,15 @@ public final class Closure extends Single implements Scope, XQFunctionExpr {
   }
 
   @Override
-  public String toString() {
-    final StringBuilder sb = new StringBuilder();
-    if(!global.isEmpty()) {
-      sb.append("((: inline-closure :) ");
-      global.forEach((k, v) -> sb.append(LET + ' ').append(k).append(' ').append(ASSIGN).
-          append(' ').append(v).append(' '));
-      sb.append(RETURN).append(' ');
+  public void plan(final QueryString qs) {
+    final boolean inlined = !global.isEmpty();
+    if(inlined) {
+      qs.token("((: inline-closure :)");
+      global.forEach((k, v) -> qs.token(LET).token(k).token(ASSIGN).token(v));
+      qs.token(RETURN);
     }
-    sb.append(FUNCTION).append(PAREN1);
-    final int pl = params.length;
-    for(int p = 0; p < pl; p++) {
-      if(p > 0) sb.append(", ");
-      sb.append(params[p]);
-    }
-    sb.append(PAREN2).append(' ');
-    sb.append(AS).append(' ').append(declType != null ? declType : SeqType.ITEM_ZM).append(' ');
-    sb.append(CURLY1).append(' ').append(expr).append(' ').append(CURLY2);
-    if(!global.isEmpty()) sb.append(PAREN2);
-    return sb.toString();
+    qs.token(FUNCTION).params(params);
+    qs.token(AS).token(declType != null ? declType : SeqType.ITEM_ZM).brace(expr);
+    if(inlined) qs.token(')');
   }
 }

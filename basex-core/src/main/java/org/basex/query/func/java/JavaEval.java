@@ -14,7 +14,7 @@ import org.basex.util.*;
 /**
  * Evaluator for Java arguments.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 final class JavaEval {
@@ -101,7 +101,8 @@ final class JavaEval {
       } else {
         final Value arg = expr.value(qc);
         exprs[s + p] = arg;
-        if(arg.type.instanceOf(JavaMapping.type(param, true))) {
+        final Type type = JavaMapping.type(param, true);
+        if(type != null && arg.type.instanceOf(type)) {
           // convert to Java object if an XQuery type exists for the function parameter
           vals[p] = arg.toJava();
         } else {
@@ -182,12 +183,12 @@ final class JavaEval {
    * @return types string
    */
   private static String types(final Object[] args) {
-    final StringBuilder sb = new StringBuilder();
+    final TokenBuilder tb = new TokenBuilder();
     for(final Object arg : args) {
-      if(sb.length() != 0) sb.append(", ");
-      sb.append(type(arg));
+      if(!tb.isEmpty()) tb.add(", ");
+      tb.add(type(arg));
     }
-    return sb.toString();
+    return tb.toString();
   }
 
   /**

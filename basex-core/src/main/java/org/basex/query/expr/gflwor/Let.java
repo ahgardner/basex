@@ -6,7 +6,6 @@ import java.util.*;
 
 import org.basex.query.*;
 import org.basex.query.expr.*;
-import org.basex.query.func.*;
 import org.basex.query.iter.*;
 import org.basex.query.util.*;
 import org.basex.query.value.*;
@@ -20,7 +19,7 @@ import org.basex.util.hash.*;
 /**
  * FLWOR {@code let} clause, binding an expression to a variable.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class Let extends ForLet {
@@ -40,7 +39,7 @@ public final class Let extends ForLet {
    * @param scoring scoring flag
    */
   public Let(final Var var, final Expr expr, final boolean scoring) {
-    super(var.info, scoring ? SeqType.DBL_O : SeqType.ITEM_ZM, var, expr, scoring, var);
+    super(var.info, scoring ? SeqType.DOUBLE_O : SeqType.ITEM_ZM, var, expr, scoring, var);
   }
 
   /**
@@ -97,7 +96,7 @@ public final class Let extends ForLet {
       }
     }
     // promote at compile time
-    if(expr instanceof Value && var.checksType()) {
+    if(expr instanceof Value) {
       expr = var.checkType((Value) expr, cc.qc, true);
     }
 
@@ -123,18 +122,8 @@ public final class Let extends ForLet {
   }
 
   @Override
-  boolean toPredicate(final CompileContext cc, final Expr ex) throws QueryException {
-    return size() == 1 && !var.checksType() && super.toPredicate(cc, ex);
-  }
-
-  /**
-   * Returns an expression that is appropriate for inlining.
-   * @param cc compilation context
-   * @return inlineable expression
-   * @throws QueryException query exception
-   */
   Expr inlineExpr(final CompileContext cc) throws QueryException {
-    return scoring ? cc.function(Function._FT_SCORE, info, expr) : var.checked(expr, cc);
+    return scoring ? null : var.checked(expr, cc);
   }
 
   @Override
@@ -150,8 +139,10 @@ public final class Let extends ForLet {
   }
 
   @Override
-  public String toString() {
-    return LET + ' ' + (scoring ? SCORE + ' ' : "") + var + ' ' + ASSIGN + ' ' + expr;
+  public void plan(final QueryString qs) {
+    qs.token(LET);
+    if(scoring) qs.token(SCORE);
+    qs.token(var).token(ASSIGN).token(expr);
   }
 
   /** Evaluator for a block of {@code let} expressions. */

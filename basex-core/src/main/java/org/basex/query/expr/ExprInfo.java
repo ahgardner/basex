@@ -6,7 +6,7 @@ import org.basex.util.*;
 /**
  * Expression information, used for debugging and logging.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public abstract class ExprInfo {
@@ -37,6 +37,12 @@ public abstract class ExprInfo {
   public abstract void plan(QueryPlan plan);
 
   /**
+   * Creates a query string.
+   * @param qs query string builder
+   */
+  public abstract void plan(QueryString qs);
+
+  /**
    * Returns a string representation of the expression that can be embedded in error messages.
    * Defaults to {@link #toString()}.
    * @return class name
@@ -46,5 +52,7 @@ public abstract class ExprInfo {
   }
 
   @Override
-  public abstract String toString();
+  public final String toString() {
+    return new QueryString().token(this).toString();
+  }
 }

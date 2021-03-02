@@ -16,7 +16,7 @@ import org.basex.util.*;
 /**
  * Function implementation.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class IndexFacets extends IndexFn {
@@ -29,9 +29,9 @@ public final class IndexFacets extends IndexFn {
   /** Name: max. */
   private static final String MAX = "max";
   /** Name: elements. */
-  private static final byte[] ELM = NodeType.ELM.string();
+  private static final byte[] ELM = NodeType.ELEMENT.qname().local();
   /** Name: attributes. */
-  private static final byte[] ATT = NodeType.ATT.string();
+  private static final byte[] ATT = NodeType.ATTRIBUTE.qname().local();
   /** Flag: flat output. */
   private static final byte[] FLAT = token("flat");
 
@@ -48,7 +48,7 @@ public final class IndexFacets extends IndexFn {
    * @return element
    */
   private static FElem flat(final Data data) {
-    final FElem elem = new FElem(new QNm(NodeType.DOC.string()));
+    final FElem elem = new FElem(NodeType.DOCUMENT_NODE.qname());
     index(data.elemNames, ELM, elem);
     index(data.attrNames, ATT, elem);
     return elem;
@@ -61,7 +61,7 @@ public final class IndexFacets extends IndexFn {
    * @return element
    */
   private static FElem tree(final Data data, final PathNode root) {
-    final FElem elem = new FElem(new QNm(ANode.type(root.kind).string()));
+    final FElem elem = new FElem(ANode.type(root.kind).qname());
     final boolean elm = root.kind == Data.ELEM;
     final Names names = elm ? data.elemNames : data.attrNames;
     if(root.kind == Data.ATTR || elm) elem.add(NAME, names.key(root.name));

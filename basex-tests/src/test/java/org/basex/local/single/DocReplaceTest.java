@@ -9,18 +9,15 @@ import org.junit.jupiter.api.Test;
 /**
  * This class replaces document nodes in a database.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class DocReplaceTest extends SandboxTest {
   /** Number of queries to be run. */
   private static final int NQUERIES = 25000;
 
-  /**
-   * Runs the test.
-   */
-  @Test
-  public void run() {
+  /** Runs the test. */
+  @Test public void run() {
     set(MainOptions.TEXTINDEX, false);
     set(MainOptions.ATTRINDEX, false);
     set(MainOptions.AUTOFLUSH, false);

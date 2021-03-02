@@ -13,7 +13,7 @@ import org.basex.util.*;
 /**
  * This class contains all query error messages.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public enum QueryError {
@@ -25,7 +25,7 @@ public enum QueryError {
   /** Error code. */
   BASEX_ANNOTATION2_X_X(BASEX, "annotation", "%: % supplied."),
   /** Error code. */
-  BASEX_ANNOTATION3_X_X(BASEX, "annotation", "Annotation %% was declared twice."),
+  BASEX_ANNOTATION3_X_X(BASEX, "annotation", "Annotation %% is declared twice."),
   /** Error code. */
   BASEX_ANNOTATION_X_X_X(BASEX, "annotation", "%: % expected, % found."),
   /** Error code. */
@@ -484,11 +484,6 @@ public enum QueryError {
   /** Error code. */
   USER_UPDATE3_X_X(USER, "update", "User '%' can only be % once."),
 
-  // Utility Module
-
-  /** Error code. */
-  UTIL_NEGATIVE_X(UTIL, "negative", "Index '%' is negative."),
-
   // Validation Module
 
   /** Error code. */
@@ -782,7 +777,7 @@ public enum QueryError {
   /** Error code. */
   NOTHES_X(FTST, 18, "Thesaurus not found: '%'."),
   /** Error code. */
-  FTDUP_X(FTST, 19, "Match option '%' was declared twice."),
+  FTDUP_X(FTST, 19, "Match option '%' is declared twice."),
 
   /** Error code. */
   SERATTR_X(SENR, 1, "Attributes cannot be serialized:%."),
@@ -834,9 +829,11 @@ public enum QueryError {
   /** Error code. */
   VAREMPTY_X(XPDY, 2, "No value assigned to %."),
   /** Error code. */
-  CTXNODE(XPDY, 50, "Root of the context value is no document node."),
+  NODOC_X(XPDY, 50, "Value has no document node: %."),
   /** Error code. */
   NOTREAT_X_X_X(XPDY, 50, "Cannot treat % as %: %."),
+  /** Error code. */
+  ARRAY_X_X(XPDY, 130, "Maximum size exceeded (%): %."),
 
   /** Error code. */
   QUERYEMPTY(XPST, 3, "Empty query."),
@@ -929,7 +926,7 @@ public enum QueryError {
   /** Error code. */
   GRPBY(XPST, 3, "Expecting valid expression after 'group by'."),
   /** Error code. */
-  FLWORRETURN(XPST, 3, "Incomplete FLWOR expression: expecting 'return'."),
+  FLWORRETURN(XPST, 3, "Incomplete FLWOR expression, expecting 'return'."),
   /** Error code. */
   NOSOME(XPST, 3, "Incomplete quantifier expression."),
   /** Error code. */
@@ -985,7 +982,7 @@ public enum QueryError {
   /** Error code. */
   UPDATINGVAR(XPST, 3, "Variable cannot be updating."),
   /** Error code. */
-  SIMPLETYPE_X(XPST, 3, "Simple type expected, '%(' found."),
+  SIMPLETYPE_X(XPST, 3, "Simple type expected, function found: %(."),
   /** Error code. */
   KEYSPEC(XPST, 3, "No specifier after lookup operator: '%'."),
   /** Error code. */
@@ -1008,13 +1005,13 @@ public enum QueryError {
   /** Error code. */
   FUNCPRIVATE_X(XPST, 17, "Function not visible: %."),
   /** Error code. */
-  FUNCSIMILAR_X_X(XPST, 17, "Unknown function: % (similar: %)."),
-  /** Error code. */
   FUNCARITY_X_X(XPST, 17, "%: % supplied."),
   /** Error code. */
   FUNCARITY_X_X_X(XPST, 17, "%: % supplied, % expected."),
   /** Error code. */
   WHICHFUNC_X(XPST, 17, "Unknown function: %."),
+  /** Error code. */
+  INVALIDFUNC_X(XPST, 17, "Invalid function: %."),
   /** Error code. */
   FUNCNOIMPL_X(XPST, 17, "External function not implemented: %."),
   /** Error code. */
@@ -1031,7 +1028,7 @@ public enum QueryError {
   /** Error code. */
   TYPEUNKNOWN_X(XPST, 51, "Unknown type: %."),
   /** Error code. */
-  CASTUNKNOWN_X(XPST, 80, "Invalid cast type: %."),
+  INVALIDCAST_X(XPST, 80, "Invalid cast type: %."),
   /** Error code. */
   NOURI_X(XPST, 81, "No namespace declared for '%'."),
   /** Error code. */
@@ -1081,8 +1078,6 @@ public enum QueryError {
   /** Error code. */
   INVFUNCITEM_X_X(XPTY, 4, "Function expected, % found: %."),
   /** Error code. */
-  NOPAREN_X_X(XPTY, 4, "No parenthesis expected after %."),
-  /** Error code. */
   CMPTYPE_X(XPTY, 4, "Type % is not comparable."),
   /** Error code. */
   CMPTYPES_X_X(XPTY, 4, "Types % and % are not comparable."),
@@ -1099,7 +1094,7 @@ public enum QueryError {
   /** Error code. */
   CITYPES_X_X(XPTY, 4, "Incompatible types in context value declarations: % vs. %."),
   /** Error code. */
-  LOOKUP_X(XPTY, 4, "Input of lookup operator is not a map or array: %."),
+  LOOKUP_X(XPTY, 4, "Input of lookup operator must be map or array: %."),
   /** Error code. */
   INVALIDOPT_X(XPTY, 4, "%"),
   /** Error code. */
@@ -1204,7 +1199,7 @@ public enum QueryError {
   /** Error code. */
   VARDUPL_X(XQST, 49, "Duplicate declaration of static variable $%."),
   /** Error code. */
-  TYPE30_X(XQST, 52, "Unknown cast type: %."),
+  WHICHCAST_X(XQST, 52, "Unknown type: %."),
   /** Error code. */
   DUPLCOPYNS(XQST, 55, "Duplicate 'copy-namespace' declaration."),
   /** Error code. */
@@ -1421,7 +1416,7 @@ public enum QueryError {
   QueryError(final ErrType type, final int number, final String message) {
     final StringBuilder sb = new StringBuilder(8).append(type);
     final String n = Integer.toString(number);
-    final int s  = 4 - n.length();
+    final int s = 4 - n.length();
     for(int i = 0; i < s; i++) sb.append('0');
     code = sb.append(n).toString();
     uri = type.uri;
@@ -1460,7 +1455,7 @@ public enum QueryError {
 
   /**
    * Error types.
-   * @author BaseX Team 2005-20, BSD License
+   * @author BaseX Team 2005-21, BSD License
    * @author Leo Woerteler
    */
   public enum ErrType {
@@ -1492,7 +1487,6 @@ public enum QueryError {
     /** Error type. */ WS(WS_PREFIX,             WS_URI),
     /** Error type. */ SQL(SQL_PREFIX,           SQL_URI),
     /** Error type. */ UNIT(UNIT_PREFIX,         UNIT_URI),
-    /** Error type. */ UTIL(UTIL_PREFIX,         UTIL_URI),
     /** Error type. */ USER(USER_PREFIX,         USER_URI),
     /** Error type. */ VALIDATE(VALIDATE_PREFIX, VALIDATE_URI),
     /** Error type. */ WEB(WEB_PREFIX,           WEB_URI),
@@ -1619,18 +1613,18 @@ public enum QueryError {
    * Throws a type exception.
    * @param ii input info
    * @param expr expression
-   * @param type target type
-   * @param name name (can be {@code null})
+   * @param st target type
+   * @param name variable name (can be {@code null})
    * @param error error code
    * @return query exception
    */
-  public static QueryException typeError(final Expr expr, final SeqType type, final QNm name,
+  public static QueryException typeError(final Expr expr, final SeqType st, final QNm name,
       final InputInfo ii, final QueryError error) {
 
     final TokenBuilder tb = new TokenBuilder();
     if(name != null) tb.add('$').add(name.string()).add(" := ");
     final byte[] value = tb.add(normalize(expr, ii)).finish();
-    return error.get(ii, expr.seqType(), type, value);
+    return error.get(ii, expr.seqType(), st, value);
   }
 
   /**
@@ -1680,10 +1674,20 @@ public enum QueryError {
    * @param number long number
    * @return suffix
    */
-  public static String arguments(final long number) {
-    final StringBuilder sb = new StringBuilder().append(number).append(" argument");
-    if(number != 1) sb.append('s');
-    return sb.toString();
+  public static byte[] arguments(final long number) {
+    final TokenBuilder tb = new TokenBuilder().addLong(number).add(" argument");
+    if(number != 1) tb.add('s');
+    return tb.finish();
+  }
+
+  /**
+   * Returns an info message for similar strings.
+   * @param string original string
+   * @param similar similar string (can be {@code null})
+   * @return info message
+   */
+  public static byte[] similar(final Object string, final Object similar) {
+    return similar == null ? Token.token(string) : Util.inf("% (similar: %)", string, similar);
   }
 
   /**

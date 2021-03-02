@@ -22,7 +22,7 @@ import org.basex.util.hash.*;
 /**
  * Group of type switch cases.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class TypeswitchGroup extends Single {
@@ -71,14 +71,14 @@ public final class TypeswitchGroup extends Single {
 
   /**
    * Inlines the expression.
-   * @param cc compilation context
    * @param value value to be bound
+   * @param cc compilation context
    * @throws QueryException query exception
    */
-  void inline(final CompileContext cc, final Value value) throws QueryException {
-    if(var == null) return;
-    final Expr inlined = expr.inline(var, var.checkType(value, cc.qc, true), cc);
-    if(inlined != null) expr = inlined;
+  void inline(final Value value, final CompileContext cc) throws QueryException {
+    if(var != null) {
+      expr = new InlineContext(var, var.checkType(value, cc.qc, true), cc).inline(expr);
+    }
   }
 
   /**
@@ -89,7 +89,8 @@ public final class TypeswitchGroup extends Single {
    * @throws QueryException query exception
    */
   Expr rewrite(final Expr cond, final CompileContext cc) throws QueryException {
-    if(var == null) return expr;
+    if(var == null) return cc.merge(cond, expr, info);
+
     final IntObjMap<Var> vm = new IntObjMap<>();
     final LinkedList<Clause> clauses = new LinkedList<>();
     clauses.add(new Let(cc.copy(var, vm), cond).optimize(cc));
@@ -139,13 +140,27 @@ public final class TypeswitchGroup extends Single {
   }
 
   @Override
-  public Expr inline(final ExprInfo ei, final Expr ex, final CompileContext cc) {
+  public Expr inline(final InlineContext ic) {
     try {
-      return super.inline(ei, ex, cc);
+      return super.inline(ic);
     } catch(final QueryException qe) {
-      expr = cc.error(qe, expr);
+      expr = ic.cc.error(qe, this);
       return this;
     }
+  }
+
+  @Override
+  public Expr typeCheck(final TypeCheck tc, final CompileContext cc) throws QueryException {
+    Expr ex;
+    try {
+      ex = tc.check(expr, cc);
+    } catch(final QueryException qe) {
+      ex = cc.error(qe, expr);
+    }
+    // returned expression will be handled Typeswitch#typeCheck
+    if(ex == null) return null;
+    expr = ex;
+    return optimize(cc);
   }
 
   @Override
@@ -171,7 +186,7 @@ public final class TypeswitchGroup extends Single {
    * @param seqType sequence type to be matched
    * @return result of check
    */
-  boolean isNever(final SeqType seqType) {
+  boolean noMatches(final SeqType seqType) {
     for(final SeqType st : seqTypes) {
       if(st.intersect(seqType) != null) return false;
     }
@@ -186,13 +201,11 @@ public final class TypeswitchGroup extends Single {
    * @throws QueryException query exception
    */
   boolean match(final Value value, final QueryContext qc) throws QueryException {
-    for(final SeqType st : seqTypes) {
-      if(st.instance(value)) {
-        if(var != null && qc != null) qc.set(var, value);
-        return true;
-      }
-    }
-    return seqTypes.length == 0;
+    final int sl = seqTypes.length;
+    boolean found = sl == 0;
+    for(int s = 0; !found && s < sl; s++) found = seqTypes[s].instance(value);
+    if(found && var != null && qc != null) qc.set(var, value);
+    return found;
   }
 
   @Override
@@ -283,19 +296,14 @@ public final class TypeswitchGroup extends Single {
   }
 
   @Override
-  public String toString() {
-    final int sl = seqTypes.length;
-    final TokenBuilder tb = new TokenBuilder().add(sl == 0 ? DEFAULT : CASE);
+  public void plan(final QueryString qs) {
+    final boolean cases = seqTypes.length > 0;
+    qs.token(cases ? CASE : DEFAULT);
     if(var != null) {
-      tb.add(' ').add(var);
-      if(sl != 0) tb.add(' ').add(AS);
+      qs.token(var);
+      if(cases) qs.token(AS);
     }
-    if(sl != 0) {
-      for(int s = 0; s < sl; s++) {
-        if(s > 0) tb.add(" |");
-        tb.add(' ').add(seqTypes[s]);
-      }
-    }
-    return tb.add(' ' + RETURN + ' ' + expr).toString();
+    if(cases) qs.tokens(seqTypes, "|");
+    qs.token(RETURN).token(expr);
   }
 }

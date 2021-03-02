@@ -7,7 +7,7 @@ import org.basex.util.list.*;
 /**
  * Resizable-array implementation for XQuery expressions.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class ExprList extends ObjectList<Expr, ExprList> {
@@ -22,8 +22,8 @@ public final class ExprList extends ObjectList<Expr, ExprList> {
    * Constructor with initial capacity.
    * @param capacity array capacity
    */
-  public ExprList(final int capacity) {
-    super(new Expr[capacity]);
+  public ExprList(final long capacity) {
+    super(new Expr[Array.checkCapacity(capacity)]);
   }
 
   /**

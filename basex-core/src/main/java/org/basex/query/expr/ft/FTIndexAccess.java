@@ -17,7 +17,7 @@ import org.basex.util.hash.*;
 /**
  * FTContains expression with index access.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FTIndexAccess extends Simple {
@@ -33,7 +33,7 @@ public final class FTIndexAccess extends Simple {
    * @param db index database
    */
   public FTIndexAccess(final InputInfo info, final FTExpr ftexpr, final IndexDb db) {
-    super(info, SeqType.TXT_ZM);
+    super(info, SeqType.TEXT_ZM);
     this.ftexpr = ftexpr;
     this.db = db;
   }
@@ -69,8 +69,8 @@ public final class FTIndexAccess extends Simple {
   }
 
   @Override
-  public boolean inlineable(final Var var) {
-    return ftexpr.inlineable(var) && db.inlineable(var);
+  public boolean inlineable(final InlineContext ic) {
+    return ftexpr.inlineable(ic) && db.inlineable(ic);
   }
 
   @Override
@@ -79,18 +79,17 @@ public final class FTIndexAccess extends Simple {
   }
 
   @Override
-  public Expr inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-    final FTExpr ftinlined = ftexpr.inline(ei, ex, cc);
+  public Expr inline(final InlineContext ic) throws QueryException {
+    final FTExpr ftinlined = ftexpr.inline(ic);
     if(ftinlined != null) ftexpr = ftinlined;
-    final IndexDb inlined = db.inline(ei, ex, cc);
+    final IndexDb inlined = db.inline(ic);
     if(inlined != null) db = inlined;
-    return ftinlined != null || inlined != null ? optimize(cc) : this;
+    return ftinlined != null || inlined != null ? optimize(ic.cc) : this;
   }
 
   @Override
   public Expr copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new FTIndexAccess(info, ftexpr.copy(cc, vm), db.copy(cc, vm));
+    return copyType(new FTIndexAccess(info, ftexpr.copy(cc, vm), db.copy(cc, vm)));
   }
 
   @Override
@@ -122,12 +121,12 @@ public final class FTIndexAccess extends Simple {
   }
 
   @Override
-  public String toString() {
+  public void plan(final QueryString qs) {
     Expr expr = ftexpr;
     if(ftexpr instanceof FTWords) {
       final FTWords ftw = (FTWords) ftexpr;
       if(ftw.mode == FTMode.ANY && ftw.occ == null && ftw.simple) expr = ftw.query;
     }
-    return Function._FT_SEARCH.args(db, expr).substring(1);
+    qs.function(Function._FT_SEARCH, db, expr);
   }
 }

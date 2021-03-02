@@ -10,17 +10,17 @@ import org.basex.util.*;
 /**
  * Logical expression, extended by {@link And} and {@link Or}.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
-abstract class Logical extends Arr {
+public abstract class Logical extends Arr {
   /**
    * Constructor.
    * @param info input info
    * @param exprs expressions
    */
   Logical(final InputInfo info, final Expr[] exprs) {
-    super(info, SeqType.BLN_O, exprs);
+    super(info, SeqType.BOOLEAN_O, exprs);
   }
 
   @Override
@@ -59,17 +59,16 @@ abstract class Logical extends Arr {
   public final void markTailCalls(final CompileContext cc) {
     // if the last expression surely returns a boolean, we can jump to it
     final Expr last = exprs[exprs.length - 1];
-    if(last.seqType().eq(SeqType.BLN_O)) last.markTailCalls(cc);
+    if(last.seqType().eq(SeqType.BOOLEAN_O)) last.markTailCalls(cc);
   }
 
   @Override
-  public Expr inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
+  public Expr inline(final InlineContext ic) throws QueryException {
     boolean changed = false;
     final int el = exprs.length;
     for(int e = 0; e < el; e++) {
       try {
-        final Expr inlined = exprs[e].inline(ei, ex, cc);
+        final Expr inlined = exprs[e].inline(ic);
         if(inlined != null) {
           exprs[e] = inlined;
           changed = true;
@@ -81,13 +80,13 @@ abstract class Logical extends Arr {
         // everything behind the error is dead anyway
         final Expr[] nw = new Expr[e + 1];
         Array.copy(exprs, e, nw);
-        nw[e] = cc.error(qe, this);
+        nw[e] = ic.cc.error(qe, exprs[e]);
         exprs = nw;
         changed = true;
         break;
       }
     }
-    return changed ? optimize(cc) : null;
+    return changed ? optimize(ic.cc) : null;
   }
 
   @Override

@@ -1,6 +1,7 @@
 package org.basex.query.up.expr;
 
 import static org.basex.query.QueryError.*;
+import static org.basex.query.QueryText.*;
 
 import org.basex.query.*;
 import org.basex.query.expr.*;
@@ -18,7 +19,7 @@ import org.basex.util.hash.*;
 /**
  * Transform expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class TransformWith extends Arr {
@@ -29,17 +30,21 @@ public final class TransformWith extends Arr {
    * @param modify modify expression
    */
   public TransformWith(final InputInfo info, final Expr source, final Expr modify) {
-    super(info, SeqType.NOD_ZM, source, modify);
+    super(info, SeqType.NODE_ZM, source, modify);
   }
 
   @Override
   public Expr compile(final CompileContext cc) throws QueryException {
-    return cc.get(new Dummy(exprs[0].seqType().type, null), () -> super.compile(cc));
+    return cc.get(new Dummy(exprs[0].seqType().with(Occ.EXACTLY_ONE), null),
+        () -> super.compile(cc));
   }
 
   @Override
   public Expr optimize(final CompileContext cc) {
-    return adoptType(exprs[0]);
+    // name of node may change
+    final SeqType st = exprs[0].seqType();
+    exprType.assign(st.type, st.occ);
+    return this;
   }
 
   @Override
@@ -52,7 +57,7 @@ public final class TransformWith extends Arr {
 
   @Override
   public Value value(final QueryContext qc) throws QueryException {
-    final Updates upd = qc.updates();
+    final Updates tmp = qc.updates();
     final QueryFocus qf = qc.focus;
     final Value cv = qf.value;
 
@@ -78,7 +83,7 @@ public final class TransformWith extends Arr {
         vb.add(item);
       }
     } finally {
-      qc.updates = upd;
+      qc.updates = tmp;
       qf.value = cv;
     }
     return vb.value(this);
@@ -86,9 +91,43 @@ public final class TransformWith extends Arr {
 
   @Override
   public boolean has(final Flag... flags) {
-    if(Flag.UPD.in(flags) && exprs[0].has(Flag.UPD)) return true;
+    if(Flag.CNS.in(flags)) return true;
     final Flag[] flgs = Flag.UPD.remove(flags);
     return flgs.length != 0 && super.has(flgs);
+  }
+
+  @Override
+  public boolean inlineable(final InlineContext ic) {
+    return exprs[0].inlineable(ic) && !(ic.expr instanceof ContextValue && exprs[1].uses(ic.var));
+  }
+
+  @Override
+  public VarUsage count(final Var var) {
+    // context reference check: only consider source expression
+    return var == null ? exprs[0].count(var) : super.count(var);
+  }
+
+  @Override
+  public Expr inline(final InlineContext ic) throws QueryException {
+    final Expr inlined = exprs[0].inline(ic);
+    boolean changed = inlined != null;
+    if(changed) exprs[0] = inlined;
+
+    // do not inline context reference in updating expressions
+    changed |= ic.var != null && ic.cc.ok(exprs[0], () -> {
+      final Expr expr = exprs[1].inline(ic);
+      if(expr == null) return false;
+      exprs[1] = expr;
+      return true;
+    });
+    return changed ? optimize(ic.cc) : null;
+  }
+
+  @Override
+  public int exprSize() {
+    int size = 1;
+    for(final Expr expr : exprs) size += expr.exprSize();
+    return size;
   }
 
   @Override
@@ -102,14 +141,7 @@ public final class TransformWith extends Arr {
   }
 
   @Override
-  public String toString() {
-    return exprs[0] + " " + QueryText.UPDATE + " { " + exprs[1] + " }";
-  }
-
-  @Override
-  public int exprSize() {
-    int size = 1;
-    for(final Expr expr : exprs) size += expr.exprSize();
-    return size;
+  public void plan(final QueryString qs) {
+    qs.token(exprs[0]).token(UPDATE).brace(exprs[1]);
   }
 }

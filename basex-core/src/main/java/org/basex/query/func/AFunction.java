@@ -7,7 +7,7 @@ import org.basex.util.*;
 /**
  * Interface for built-in functions.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public interface AFunction {
@@ -41,7 +41,7 @@ public interface AFunction {
    * Returns a string representation of the function with the specified arguments
    * (see {@link FuncDefinition}).
    * @param args arguments
-   * @return string representation
+   * @return string representation with leading space (simplifies nesting of returned string)
    */
   default String args(final Object... args) {
     return definition().args(args);

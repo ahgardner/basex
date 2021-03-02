@@ -14,7 +14,7 @@ import org.basex.util.hash.*;
 /**
  * A named function literal.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class FuncLit extends Single implements Scope {
@@ -86,7 +86,7 @@ public final class FuncLit extends Single implements Scope {
       final Var[] vars = new Var[pl];
       for(int p = 0; p < pl; p++) vars[p] = cc.copy(params[p], vm);
       final Expr ex = expr.copy(cc, vm);
-      return new FuncLit(anns, name, vars, ex, seqType(), vsc, info);
+      return copyType(new FuncLit(anns, name, vars, ex, seqType(), vsc, info));
     } finally {
       cc.removeScope();
     }
@@ -117,7 +117,7 @@ public final class FuncLit extends Single implements Scope {
   }
 
   @Override
-  public String toString() {
-    return Strings.concat(name.prefixId(), '#', params.length);
+  public void plan(final QueryString qs) {
+    qs.concat(name.prefixId(), "#", params.length);
   }
 }

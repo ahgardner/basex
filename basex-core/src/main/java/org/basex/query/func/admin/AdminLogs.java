@@ -20,7 +20,7 @@ import org.basex.util.*;
 /**
  * Function implementation.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class AdminLogs extends AdminFn {
@@ -41,13 +41,13 @@ public final class AdminLogs extends AdminFn {
    * @param qc query context
    * @return list
    */
-  private static Value list(final QueryContext qc) {
+  private Value list(final QueryContext qc) {
     final ValueBuilder vb = new ValueBuilder(qc);
     for(final IOFile file : qc.context.log.files()) {
       final String date = file.name().replace(IO.LOGSUFFIX, "");
       vb.add(new FElem(FILE).add(date).add(SIZE, Token.token(file.length())));
     }
-    return vb.value();
+    return vb.value(this);
   }
 
   /**
@@ -92,7 +92,8 @@ public final class AdminLogs extends AdminFn {
                   entry.type = t;
                   entry.user = next.user;
                   entry.ms = entry.ms.add(next.ms);
-                  if(!next.message.isEmpty()) entry.message += "; " + next.message;
+                  final String msg1 = entry.message, msg2 = next.message;
+                  if(!msg2.isEmpty()) entry.message = msg1.isEmpty() ? msg2 : msg1 + "; " + msg2;
                   iter.remove();
                   break;
                 }
@@ -141,7 +142,12 @@ public final class AdminLogs extends AdminFn {
           entry.user = cols[2];
           entry.type = cols.length > 3 ? cols[3] : "";
           entry.message = cols.length > 4 ? cols[4] : "";
-          entry.ms = cols.length > 5 ? new BigDecimal(cols[5].replace(" ms", "")) : BigDecimal.ZERO;
+          entry.ms = BigDecimal.ZERO;
+          if(cols.length > 5) {
+            // skip errors caused by erroneous input
+            final int i = cols[5].indexOf(" ms");
+            if(i > -1) entry.ms = new BigDecimal(cols[5].substring(0, i));
+          }
         } else {
           // legacy format
           entry.message = line;

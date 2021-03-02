@@ -8,7 +8,7 @@ import org.basex.util.*;
 /**
  * Untyped atomic item ({@code xs:untypedAtomic}).
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class Atm extends Item {
@@ -20,7 +20,7 @@ public final class Atm extends Item {
    * @param value value
    */
   public Atm(final byte[] value) {
-    super(AtomType.ATM);
+    super(AtomType.UNTYPED_ATOMIC);
     this.value = value;
   }
 
@@ -43,6 +43,11 @@ public final class Atm extends Item {
   }
 
   @Override
+  public boolean comparable(final Item item) {
+    return item.type.isStringOrUntyped();
+  }
+
+  @Override
   public boolean eq(final Item item, final Collation coll, final StaticContext sc,
       final InputInfo ii) throws QueryException {
     return item.type.isUntyped() ? coll == null ? Token.eq(value, item.string(ii)) :
@@ -55,8 +60,7 @@ public final class Atm extends Item {
   }
 
   @Override
-  public int diff(final Item item, final Collation coll, final InputInfo ii)
-      throws QueryException {
+  public int diff(final Item item, final Collation coll, final InputInfo ii) throws QueryException {
     return item.type.isUntyped() ? coll == null ? Token.diff(value, item.string(ii)) :
       coll.compare(value, item.string(ii)) : -item.diff(this, coll, ii);
   }
@@ -72,7 +76,7 @@ public final class Atm extends Item {
   }
 
   @Override
-  public String toString() {
-    return Token.string(toQuotedToken(value));
+  public void plan(final QueryString qs) {
+    qs.quoted(value);
   }
 }

@@ -12,7 +12,7 @@ import org.basex.util.*;
 /**
  * Lazy string item ({@code xs:string}).
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class StrLazy extends AStr implements Lazy {
@@ -110,7 +110,11 @@ public final class StrLazy extends AStr implements Lazy {
   }
 
   @Override
-  public String toString() {
-    return isCached() ? super.toString() : Function._FILE_READ_TEXT.args(input).substring(1);
+  public void plan(final QueryString qs) {
+    if(isCached()) {
+      super.plan(qs);
+    } else {
+      qs.function(Function._FILE_READ_TEXT, input);
+    }
   }
 }

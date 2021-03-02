@@ -18,7 +18,7 @@ import org.basex.util.hash.*;
 /**
  * Static invocation of a function in an imported Java class instance.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class StaticJavaCall extends JavaCall {
@@ -37,13 +37,14 @@ public final class StaticJavaCall extends JavaCall {
    * @param method Java method/field
    * @param args arguments
    * @param perm required permission
+   * @param updating updating flag
    * @param sc static context
    * @param info input info
    */
-  StaticJavaCall(final Object module, final Method method, final Expr[] args,
-      final Perm perm, final StaticContext sc, final InputInfo info) {
+  StaticJavaCall(final Object module, final Method method, final Expr[] args, final Perm perm,
+      final boolean updating, final StaticContext sc, final InputInfo info) {
 
-    super(args, perm, sc, info);
+    super(args, perm, updating, sc, info);
     this.module = module;
     this.method = method;
     params = method.getParameterTypes();
@@ -81,23 +82,24 @@ public final class StaticJavaCall extends JavaCall {
   }
 
   @Override
-  public Expr copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new StaticJavaCall(module, method, copyAll(cc, vm, exprs), perm, sc, info);
+  public StaticJavaCall copy(final CompileContext cc, final IntObjMap<Var> vm) {
+    return copyType(new StaticJavaCall(module, method, copyAll(cc, vm, exprs), perm, updating, sc,
+        info));
   }
 
   @Override
   public boolean has(final Flag... flags) {
-    return Flag.NDT.in(flags) && method.getAnnotation(Deterministic.class) == null ||
+    return Flag.UPD.in(flags) && method.getAnnotation(Updating.class) != null ||
+      Flag.NDT.in(flags) && method.getAnnotation(Deterministic.class) == null ||
       (Flag.CTX.in(flags) || Flag.POS.in(flags)) &&
       method.getAnnotation(FocusDependent.class) != null ||
       super.has(flags);
   }
 
   @Override
-  public Expr inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-    return inline(ei, ex, cc, () -> method.getAnnotation(FocusDependent.class) != null ?
-      SimpleMap.get(cc, info, ex, this) : null);
+  public boolean inlineable(final InlineContext ic) {
+    return (ic.var != null || method.getAnnotation(FocusDependent.class) == null) &&
+        super.inlineable(ic);
   }
 
   @Override

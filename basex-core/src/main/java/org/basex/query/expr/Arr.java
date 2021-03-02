@@ -1,14 +1,12 @@
 package org.basex.query.expr;
 
-import static org.basex.query.QueryText.*;
+import static org.basex.query.func.Function.*;
 
 import java.util.function.*;
 
 import org.basex.query.*;
 import org.basex.query.CompileContext.*;
-import org.basex.query.expr.path.*;
 import org.basex.query.func.Function;
-import org.basex.query.func.fn.*;
 import org.basex.query.util.*;
 import org.basex.query.util.list.*;
 import org.basex.query.value.*;
@@ -20,7 +18,7 @@ import org.basex.util.hash.*;
 /**
  * Abstract array expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public abstract class Arr extends ParseExpr {
@@ -59,9 +57,9 @@ public abstract class Arr extends ParseExpr {
   }
 
   @Override
-  public boolean inlineable(final Var var) {
+  public boolean inlineable(final InlineContext ic) {
     for(final Expr expr : exprs) {
-      if(!expr.inlineable(var)) return false;
+      if(!expr.inlineable(ic)) return false;
     }
     return true;
   }
@@ -72,35 +70,26 @@ public abstract class Arr extends ParseExpr {
   }
 
   @Override
-  public Expr inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-    return inlineAll(ei, ex, exprs, cc) ? optimize(cc) : null;
+  public Expr inline(final InlineContext ic) throws QueryException {
+    return ic.inline(exprs) ? optimize(ic.cc) : null;
   }
 
   /**
-   * Inlines an expression into this one, replacing all variable or context references.
-   * @param ei {@link Var}, {@link Path} or context ({@code null}) to inline
-   * @param ex expression to inline
-   * @param cc compilation context
-   * @param context function for context inlining
+   * Inlines an expression (see {@link Expr#inline(InlineContext)}).
+   * @param ic inlining context
+   * @param context function for context inlining; yields {@code null} if no inlining is required
    * @return resulting expression if something changed, {@code null} otherwise
    * @throws QueryException query exception
    */
-  public Expr inline(final ExprInfo ei, final Expr ex, final CompileContext cc,
-      final QuerySupplier<Expr> context) throws QueryException {
+  public Expr inline(final InlineContext ic, final QuerySupplier<Expr> context)
+      throws QueryException {
 
-    // no arguments are inlined: return null or apply context inlining function
-    if(!inlineAll(ei, ex, exprs, cc)) {
-      return ei != null ? null : context.get();
-    }
-
-    // optimize new expression. skip further optimizations if variable was inlined
-    final Expr opt = optimize(cc);
-    if(ei != null) return opt;
-
-    // inline again if context was inlined
-    final Expr inlined = opt.inline(ei, ex, cc);
-    return inlined != null ? inlined : opt;
+    // inline arguments
+    final boolean changed = ic.inline(exprs);
+    // context reference: create new expression with inlined context
+    final Expr expr = ic.var == null && !(ic.expr instanceof ContextValue) ? context.get() : null;
+    // new expression exists and/or arguments were inlined: optimize expression
+    return expr != null ? expr.optimize(ic.cc) : changed ? optimize(ic.cc) : null;
   }
 
   /**
@@ -166,8 +155,8 @@ public abstract class Arr extends ParseExpr {
     final Class<? extends Arr> clazz = getClass();
     for(final Expr expr : exprs) {
       if(clazz.isInstance(expr)) {
-        list.add(((Arr) expr).exprs);
-        cc.info(OPTFLAT_X_X, expr, (Supplier<?>) this::description);
+        list.add(expr.args());
+        cc.info(QueryText.OPTFLAT_X_X, expr, (Supplier<?>) this::description);
       } else {
         list.add(expr);
       }
@@ -207,10 +196,10 @@ public abstract class Arr extends ParseExpr {
         // skip evaluation: true() or $bool  ->  true()
         if(expr.ebv(cc.qc, info).bool(info) ^ !or) return true;
         // ignore result: true() and $bool  ->  $bool
-        cc.info(OPTREMOVE_X_X, expr, (Supplier<?>) this::description);
+        cc.info(QueryText.OPTREMOVE_X_X, expr, (Supplier<?>) this::description);
       } else if(!pos && list.contains(expr) && !expr.has(Flag.NDT)) {
         // ignore duplicates: A[$node and $node]  ->  A[$node]
-        cc.info(OPTREMOVE_X_X, expr, (Supplier<?>) this::description);
+        cc.info(QueryText.OPTREMOVE_X_X, expr, (Supplier<?>) this::description);
       } else {
         list.add(expr);
         // preserve entries after positional predicates
@@ -222,11 +211,11 @@ public abstract class Arr extends ParseExpr {
     if(!(positional && has(Flag.POS))) {
       final Class<? extends Arr> clazz = or ? And.class : Or.class;
       final QueryBiFunction<Boolean, Expr[], Expr> func = (invert, args) ->
-        (invert ? !or : or) ? new Or(info, args) : new And(info, args);
+        (invert != or) ? new Or(info, args) : new And(info, args);
       final Expr tmp = rewrite(clazz, func, cc);
       if(tmp != null) {
         exprs = new Expr[] { tmp };
-        cc.info(OPTREWRITE_X_X, (Supplier<?>) this::description, this);
+        cc.info(QueryText.OPTREWRITE_X_X, (Supplier<?>) this::description, this);
       }
     }
 
@@ -236,16 +225,15 @@ public abstract class Arr extends ParseExpr {
         final Expr expr1 = list.get(l), expr2 = list.get(m);
         if(!(positional && expr1.has(Flag.POS))) {
           // A or not(A)  ->  true()
-          // A[B][not(B)]  ->  ()
-          if(Function.NOT.is(expr2) && ((Arr) expr2).exprs[0].equals(expr1) ||
-             Function.NOT.is(expr1) && ((Arr) expr1).exprs[0].equals(expr2)) {
-            return true;
-          }
+          // A[not(B)][B]  ->  ()
+          // empty(A) or exists(A)  ->  true()
+          if(contradict(expr1, expr2, true) || contradict(expr2, expr1, true)) return true;
+
           // 'a'[. = 'a' or . = 'b']  ->  'a'[. = ('a', 'b')]
           // $v[. != 'a'][. != 'b']  ->  $v[not(. = ('a', 'b')]
           final Expr merged = expr1.mergeEbv(expr2, or, cc);
           if(merged != null) {
-            cc.info(OPTSIMPLE_X_X, (Supplier<?>) this::description, this);
+            cc.info(QueryText.OPTSIMPLE_X_X, (Supplier<?>) this::description, this);
             list.set(l, merged);
             list.remove(m--);
           }
@@ -255,11 +243,11 @@ public abstract class Arr extends ParseExpr {
     exprs = list.next();
 
     // not($a) and not($b)  ->  not($a or $b)
-    final org.basex.query.func.Function not = org.basex.query.func.Function.NOT;
+    final Function not = NOT;
     final Checks<Expr> fnNot = ex -> not.is(ex) && !(positional && ex.has(Flag.POS));
     if(exprs.length > 1 && fnNot.all(exprs)) {
       final ExprList tmp = new ExprList(exprs.length);
-      for(final Expr expr : exprs) tmp.add(((FnNot) expr).exprs[0]);
+      for(final Expr expr : exprs) tmp.add(expr.arg(0));
       final Expr expr = or ? new And(info, tmp.finish()) : new Or(info, tmp.finish());
       list.add(cc.function(not, info, expr.optimize(cc)));
     } else {
@@ -268,6 +256,27 @@ public abstract class Arr extends ParseExpr {
 
     exprs = list.finish();
     return false;
+  }
+
+  /**
+   * Checks if the specified expressions contradict each other.
+   * @param expr1 first expression
+   * @param expr2 second expression
+   * @param ebv consider ebv checks
+   * @return result of check
+   */
+  final boolean contradict(final Expr expr1, final Expr expr2, final boolean ebv) {
+    // boolean(A), not(A)
+    Expr arg = BOOLEAN.is(expr1) ? expr1.arg(0) : expr1;
+    if(NOT.is(expr2) && expr2.arg(0).equals(arg)) return true;
+
+    // empty(A), exists(A)
+    arg = EXISTS.is(expr1) ? expr1.arg(0) : ebv && expr1.seqType().type instanceof NodeType ?
+      expr1 : null;
+    if(EMPTY.is(expr2) && arg != null && expr2.arg(0).equals(arg)) return true;
+
+    // A = B, A != B
+    return expr1 instanceof Cmp && expr2 instanceof Cmp && expr1.equals(((Cmp) expr2).invert());
   }
 
   /**
@@ -283,12 +292,12 @@ public abstract class Arr extends ParseExpr {
       throws QueryException {
 
     // skip if only one operand is left, or if children have no operands that can be optimized
-    if(exprs.length < 2 || !((Checks<Expr>) expr -> inverse.isInstance(expr)).any(exprs))
+    if(exprs.length < 2 || !((Checks<Expr>) inverse::isInstance).any(exprs))
       return null;
 
     // check if expressions have common operands
     final java.util.function.Function<Expr, ExprList> entries = ex ->
-      new ExprList().add(inverse.isInstance(ex) ? ((Arr) ex).exprs : new Expr[] { ex });
+      new ExprList().add(inverse.isInstance(ex) ? ex.args() : new Expr[] { ex });
     final int el = exprs.length;
     final ExprList lefts = new ExprList().add(entries.apply(exprs[0]));
     for(int e = 1; e < el && !lefts.isEmpty(); ++e) {
@@ -311,7 +320,8 @@ public abstract class Arr extends ParseExpr {
         // no additional tests: return common tests
         // A intersect (A union B)  ->  A
         // (A and B) or (A and B and C)  ->  A
-        return left.ddo() ? left : cc.function(Function._UTIL_DDO, info, left);
+        return left.seqType().type instanceof NodeType && !left.ddo() ?
+          cc.function(Function._UTIL_DDO, info, left) : left;
       } else if(curr.size() == 1) {
         // single additional test: add this test
         // (A and B) or (A and C)  ->  A and (B or C)
@@ -340,6 +350,11 @@ public abstract class Arr extends ParseExpr {
   }
 
   @Override
+  public Expr[] args() {
+    return exprs;
+  }
+
+  @Override
   public int exprSize() {
     int size = 1;
     for(final Expr expr : exprs) size += expr.exprSize();
@@ -358,15 +373,5 @@ public abstract class Arr extends ParseExpr {
   @Override
   public void plan(final QueryPlan plan) {
     plan.add(plan.create(this), exprs);
-  }
-
-  /**
-   * Returns a string representation of this expression.
-   * Separates the array entries with the specified separator.
-   * @param separator separator (operator, delimiter)
-   * @return string representation
-   */
-  protected String toString(final String separator) {
-    return new TokenBuilder().add(PAREN1).addSeparated(exprs, separator).add(PAREN2).toString();
   }
 }

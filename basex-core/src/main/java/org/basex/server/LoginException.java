@@ -9,15 +9,16 @@ import org.basex.util.*;
 /**
  * This exception is thrown if a wrong user/password combination was specified.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class LoginException extends IOException {
   /**
    * Constructor.
+   * @param name user name (can be {@code null})
    */
-  public LoginException() {
-    super(ACCESS_DENIED);
+  public LoginException(final String name) {
+    this(ACCESS_DENIED_X, name == null ? "-" : name);
   }
 
   /**

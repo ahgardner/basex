@@ -7,7 +7,7 @@ import org.basex.util.*;
 /**
  * Resizable-array implementation for native long values.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public class LongList extends ElementList {
@@ -25,8 +25,8 @@ public class LongList extends ElementList {
    * Constructor with initial capacity.
    * @param capacity array capacity
    */
-  public LongList(final int capacity) {
-    list = new long[capacity];
+  public LongList(final long capacity) {
+    list = new long[Array.checkCapacity(capacity)];
   }
 
   /**

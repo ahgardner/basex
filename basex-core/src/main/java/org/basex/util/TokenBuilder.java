@@ -8,7 +8,7 @@ import java.util.*;
  * This class serves as an efficient constructor for {@link Token Tokens}.
  * It bears some resemblance to Java's {@link StringBuilder}.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class TokenBuilder {
@@ -47,8 +47,8 @@ public final class TokenBuilder {
    * Constructor with initial array capacity.
    * @param capacity array capacity
    */
-  public TokenBuilder(final int capacity) {
-    chars = new byte[capacity];
+  public TokenBuilder(final long capacity) {
+    chars = new byte[Array.checkCapacity(capacity)];
   }
 
   /**
@@ -202,12 +202,15 @@ public final class TokenBuilder {
 
   /**
    * Deletes bytes from the token.
-   * @param pos position
-   * @param length number of bytes to be removed
+   * @param start start position
+   * @param end end position
+   * @return self reference
    */
-  public void delete(final int pos, final int length) {
-    Array.remove(chars, pos, length, size);
+  public TokenBuilder delete(final int start, final int end) {
+    final int length = end - start;
+    Array.remove(chars, start, length, size);
     size -= length;
+    return this;
   }
 
   /**
@@ -253,7 +256,7 @@ public final class TokenBuilder {
   }
 
   /**
-   * Adds the part of a token to the token.
+   * Adds a subtoken.
    * @param token the token
    * @param start start position
    * @param end end position
@@ -287,10 +290,10 @@ public final class TokenBuilder {
    * @param separator separator string
    * @return self reference
    */
-  public TokenBuilder addSeparated(final Object[] objects, final String separator) {
+  public TokenBuilder addAll(final Object[] objects, final String separator) {
     final int ol = objects.length;
     for(int o = 0; o < ol; o++) {
-      if(o != 0) add(separator);
+      if(o > 0) add(separator);
       add(objects[o]);
     }
     return this;

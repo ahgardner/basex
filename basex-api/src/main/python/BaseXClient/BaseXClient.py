@@ -12,7 +12,7 @@ LIMITATIONS:
 * also, will fail to extract stored binary content, maybe.
   (both my code, and original don't care escaped 0xff.)
 
-Documentation: http://docs.basex.org/wiki/Clients
+Documentation: https://docs.basex.org/wiki/Clients
 
 (C) 2012, Hiroaki Itoh. BSD License
     updated 2014 by Marc van Grootel
@@ -21,13 +21,12 @@ Documentation: http://docs.basex.org/wiki/Clients
 
 import hashlib
 import socket
-import threading
 
 # ---------------------------------
 #
 
 
-class SocketWrapper(object):
+class SocketWrapper:
     """a wrapper to python native socket module."""
 
     def __init__(self, sock,
@@ -75,10 +74,9 @@ from previously fetched buffer."""
                 result_bytes.extend(self.__buf[self.__bpos:pos])
                 self.__bpos = pos + 1
                 break
-            else:
-                result_bytes.extend(self.__buf[self.__bpos:self.__bsize])
-                self.__bpos = self.__bsize
-        return result_bytes.decode(self.receive_bytes_encoding)
+            result_bytes.extend(self.__buf[self.__bpos:self.__bsize])
+            self.__bpos = self.__bsize
+        return result_bytes
 
     def sendall(self, data):
         """sendall with specified byte encoding if data is not bytearray, bytes
@@ -94,10 +92,10 @@ directly."""
 
 # ---------------------------------
 #
-class Session(object):
+class Session:
     """class Session.
 
-    see http://docs.basex.org/wiki/Server_Protocol
+    see https://docs.basex.org/wiki/Server_Protocol
     """
 
     def __init__(self, host, port, user, password,
@@ -186,7 +184,7 @@ yourself explicitly."""
 
     def recv_c_str(self):
         """Retrieve a string from the socket"""
-        return self.__swrapper.recv_until_terminator()
+        return self.__swrapper.recv_until_terminator().decode(self.__swrapper.receive_bytes_encoding)
 
     def send(self, value):
         """Send the defined string"""
@@ -237,25 +235,28 @@ yourself explicitly."""
         """iter_receive() -> (typecode, item)
 
 iterate while the query returns items.
-typecode list is in http://docs.basex.org/wiki/Server_Protocol:_Types
+typecode list is in https://docs.basex.org/wiki/Server_Protocol:_Types
 """
+        result = list()
         self.__swrapper.clear_buffer()
         typecode = self.__swrapper.recv_single_byte()
         while typecode > 0:
-            string = self.recv_c_str()
-            yield (typecode, string)
+            result.append(self.__swrapper.recv_until_terminator())
             typecode = self.__swrapper.recv_single_byte()
         if not self.server_response_success():
             raise IOError(self.recv_c_str())
+        for ba in result:
+            yield ba.decode(self.__swrapper.receive_bytes_encoding)
+
 
 # ---------------------------------
 #
 
 
-class Query():
+class Query:
     """class Query.
 
-    see http://docs.basex.org/wiki/Server_Protocol
+    see https://docs.basex.org/wiki/Server_Protocol
     """
 
     def __init__(self, session, querytxt):

@@ -21,7 +21,7 @@ import org.basex.util.hash.*;
 /**
  * Transform expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Lukas Kircher
  */
 public final class Transform extends Arr {
@@ -57,14 +57,18 @@ public final class Transform extends Arr {
 
   @Override
   public Expr optimize(final CompileContext cc) {
-    for(final Let copy : copies) copy.adoptType(copy.expr);
-    return adoptType(exprs[1]);
+    for(final Let copy : copies) {
+      copy.exprType.assign(copy.expr);
+    }
+    // name of node may change
+    final SeqType st = exprs[1].seqType();
+    exprType.assign(st.type, st.occ);
+    return this;
   }
 
   @Override
   public Value value(final QueryContext qc) throws QueryException {
-    final Updates upd = qc.updates();
-    final Updates updates = new Updates(true);
+    final Updates tmp = qc.updates(), updates = new Updates(true);
     qc.updates = updates;
 
     try {
@@ -88,7 +92,7 @@ public final class Transform extends Arr {
       updates.prepare(qc);
       updates.apply(qc);
     } finally {
-      qc.updates = upd;
+      qc.updates = tmp;
     }
     return exprs[1].value(qc);
   }
@@ -98,17 +102,17 @@ public final class Transform extends Arr {
     for(final Let copy : copies) {
       if(copy.has(flags)) return true;
     }
-    if(Flag.UPD.in(flags) && exprs[1].has(Flag.UPD)) return true;
+    if(Flag.CNS.in(flags) || Flag.UPD.in(flags) && exprs[1].has(Flag.UPD)) return true;
     final Flag[] flgs = Flag.UPD.remove(flags);
     return flgs.length != 0 && super.has(flgs);
   }
 
   @Override
-  public boolean inlineable(final Var var) {
+  public boolean inlineable(final InlineContext ic) {
     for(final Let copy : copies) {
-      if(!copy.inlineable(var)) return false;
+      if(!copy.inlineable(ic)) return false;
     }
-    return super.inlineable(var);
+    return super.inlineable(ic);
   }
 
   @Override
@@ -117,10 +121,9 @@ public final class Transform extends Arr {
   }
 
   @Override
-  public Expr inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-    final boolean a = inlineAll(ei, ex, copies, cc), b = inlineAll(ei, ex, exprs, cc);
-    return a || b ? optimize(cc) : null;
+  public Expr inline(final InlineContext ic) throws QueryException {
+    final boolean a = ic.inline(copies), b = ic.inline(exprs);
+    return a || b ? optimize(ic.cc) : null;
   }
 
   @Override
@@ -154,11 +157,14 @@ public final class Transform extends Arr {
   }
 
   @Override
-  public String toString() {
-    final StringBuilder sb = new StringBuilder(COPY + ' ');
-    for(final Let copy : copies)
-      sb.append(copy.var).append(' ').append(ASSIGN).append(' ').append(copy.expr).append(' ');
-    return sb.append(MODIFY + ' ').append(exprs[0]).append(' ').append(RETURN).append(' ').
-      append(exprs[1]).toString();
+  public void plan(final QueryString qs) {
+    qs.token(COPY);
+    boolean more = false;
+    for(final Let copy : copies) {
+      if(more) qs.token(SEP);
+      else more = true;
+      qs.token(copy.var.id()).token(ASSIGN).token(copy.expr);
+    }
+    qs.token(MODIFY).token(exprs[0]).token(RETURN).token(exprs[1]);
   }
 }

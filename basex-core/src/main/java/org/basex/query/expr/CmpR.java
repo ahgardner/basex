@@ -2,7 +2,6 @@ package org.basex.query.expr;
 
 import static java.lang.Double.*;
 import static org.basex.query.QueryText.*;
-import static org.basex.util.Token.*;
 
 import org.basex.data.*;
 import org.basex.index.*;
@@ -29,7 +28,7 @@ import org.basex.util.hash.*;
 /**
  * Numeric range expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class CmpR extends Single {
@@ -52,7 +51,7 @@ public final class CmpR extends Single {
    * @param info input info
    */
   private CmpR(final Expr expr, final double min, final double max, final InputInfo info) {
-    super(info, expr, SeqType.BLN_O);
+    super(info, expr, SeqType.BOOLEAN_O);
     this.min = min;
     this.max = max;
   }
@@ -83,11 +82,11 @@ public final class CmpR extends Single {
     final Type type1 = expr1.seqType().type, type2 = expr2.seqType().type;
 
     // only rewrite deterministic comparisons if input is not decimal
-    if(cmp.has(Flag.NDT) || !type1.isNumberOrUntyped() || type1 == AtomType.DEC) return cmp;
+    if(cmp.has(Flag.NDT) || !type1.isNumberOrUntyped() || type1 == AtomType.DECIMAL) return cmp;
 
     // if value to be compared is a decimal, input must be untyped or integer
-    if(!(expr2 instanceof ANum) || type2 == AtomType.DEC && !type1.isUntyped() &&
-        !type1.instanceOf(AtomType.ITR)) return cmp;
+    if(!(expr2 instanceof ANum) || type2 == AtomType.DECIMAL && !type1.isUntyped() &&
+        !type1.instanceOf(AtomType.INTEGER)) return cmp;
 
     // reject numbers that are too large or small to be safely compared as doubles
     final double d = ((ANum) expr2).dbl();
@@ -117,10 +116,10 @@ public final class CmpR extends Single {
     final SeqType st = expr.seqType();
     single = st.zeroOrOne() && !st.mayBeArray();
 
+    if(expr instanceof Value) return cc.preEval(this);
+
     Expr ex = this;
-    if(expr instanceof Value) {
-      ex = item(cc.qc, info);
-    } else if(Function.POSITION.is(expr)) {
+    if(Function.POSITION.is(expr)) {
       final long mn = Math.max((long) Math.ceil(min), 1), mx = (long) Math.floor(max);
       ex = ItrPos.get(RangeSeq.get(mn, mx - mn + 1, true), OpV.EQ, info);
     }
@@ -205,13 +204,13 @@ public final class CmpR extends Single {
     if(ii.costs == null) return false;
 
     // skip if numbers are negative, doubles, or of different string length
-    final int mnl = min >= 0 && (long) min == min ? token(min).length : -1;
-    final int mxl = max >= 0 && (long) max == max ? token(max).length : -1;
+    final int mnl = min >= 0 && (long) min == min ? Token.token(min).length : -1;
+    final int mxl = max >= 0 && (long) max == max ? Token.token(max).length : -1;
     if(mnl != mxl || mnl == -1) return false;
 
     // don't use index if min/max values are infinite
     if(min == NEGATIVE_INFINITY && max == POSITIVE_INFINITY ||
-        token((int) nr.min).length != token((int) nr.max).length) return false;
+        Token.token((int) nr.min).length != Token.token((int) nr.max).length) return false;
 
     final TokenBuilder tb = new TokenBuilder();
     tb.add('[').add(min).add(',').add(max).add(']');
@@ -244,7 +243,7 @@ public final class CmpR extends Single {
       }
       if(!(step.test instanceof NameTest)) return null;
       test = (NameTest) step.test;
-      if(test.part != NamePart.LOCAL) return null;
+      if(test.part() != NamePart.LOCAL) return null;
     }
 
     final Names names = type == IndexType.TEXT ? data.elemNames : data.attrNames;
@@ -256,7 +255,7 @@ public final class CmpR extends Single {
   public Expr copy(final CompileContext cc, final IntObjMap<Var> vm) {
     final CmpR cmp = new CmpR(expr.copy(cc, vm), min, max, info);
     cmp.single = single;
-    return cmp;
+    return copyType(cmp);
   }
 
   @Override
@@ -278,15 +277,13 @@ public final class CmpR extends Single {
   }
 
   @Override
-  public String toString() {
-    final TokenBuilder tb = new TokenBuilder().add(PAREN1);
+  public void plan(final QueryString qs) {
     if(min == max) {
-      tb.add(expr).add(" = ").add(min);
+      qs.token(expr).token("=").token(min);
     } else {
-      if(min != NEGATIVE_INFINITY) tb.add(expr).add(" >= ").add(min);
-      if(min != NEGATIVE_INFINITY && max != POSITIVE_INFINITY) tb.add(' ').add(AND).add(' ');
-      if(max != POSITIVE_INFINITY) tb.add(expr).add(" <= ").add(max);
+      if(min != NEGATIVE_INFINITY) qs.token(expr).token(">=").token(min);
+      if(min != NEGATIVE_INFINITY && max != POSITIVE_INFINITY) qs.token(AND);
+      if(max != POSITIVE_INFINITY) qs.token(expr).token("<=").token(max);
     }
-    return tb.add(PAREN2).toString();
   }
 }

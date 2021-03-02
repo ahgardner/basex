@@ -4,6 +4,7 @@ import static org.basex.query.QueryText.*;
 
 import java.util.function.*;
 
+import org.basex.data.*;
 import org.basex.query.*;
 import org.basex.query.iter.*;
 import org.basex.query.util.*;
@@ -20,7 +21,7 @@ import org.basex.util.hash.*;
 /**
  * Union expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class Union extends Set {
@@ -38,19 +39,17 @@ public final class Union extends Set {
     flatten(cc);
 
     // determine type
-    Type type = null;
+    SeqType st = null;
     for(final Expr expr : exprs) {
-      final SeqType st = expr.seqType();
-      if(!st.zero()) {
-        final Type type2 = expr.seqType().type;
-        type = type == null ? type2 : type.union(type2);
-      }
+      final SeqType st2 = expr.seqType();
+      if(!st2.zero()) st = st == null ? st2 : st.union(st2);
     }
-    if(type == null) type = NodeType.NOD;
+    // check if all operands yield an empty sequence
+    if(st == null) st = SeqType.NODE_ZM;
 
     // skip optimizations if operands do not have the correct type
-    if(type instanceof NodeType) {
-      exprType.assign(type);
+    if(st.type instanceof NodeType) {
+      exprType.assign(st.union(Occ.ONE_OR_MORE));
 
       final ExprList list = new ExprList(exprs.length);
       for(final Expr expr : exprs) {
@@ -118,6 +117,11 @@ public final class Union extends Set {
         return node;
       }
     };
+  }
+
+  @Override
+  public Data data() {
+    return data(exprs);
   }
 
   @Override

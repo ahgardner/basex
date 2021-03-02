@@ -3,12 +3,13 @@ package org.basex.query.func.java;
 import org.basex.core.users.*;
 import org.basex.query.*;
 import org.basex.query.expr.*;
+import org.basex.query.util.*;
 import org.basex.util.*;
 
 /**
  * Dynamic invocation of a Java constructor, field or method.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 abstract class DynJavaCall extends JavaCall {
@@ -25,12 +26,16 @@ abstract class DynJavaCall extends JavaCall {
    * @param sc static context
    * @param info input info
    */
-  DynJavaCall(final Class<?> clazz, final String[] types, final Expr[] args,
-      final StaticContext sc, final InputInfo info) {
-
-    super(args, Perm.ADMIN, sc, info);
+  DynJavaCall(final Class<?> clazz, final String[] types, final Expr[] args, final StaticContext sc,
+      final InputInfo info) {
+    super(args, Perm.ADMIN, false, sc, info);
     this.clazz = clazz;
     this.types = types;
+  }
+
+  @Override
+  public final boolean has(final Flag... flags) {
+    return Flag.NDT.in(flags) || super.has(flags);
   }
 
   /**

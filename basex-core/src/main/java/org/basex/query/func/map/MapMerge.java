@@ -1,9 +1,12 @@
 package org.basex.query.func.map;
 
+import static org.basex.query.func.Function.*;
+
 import org.basex.query.*;
 import org.basex.query.expr.*;
 import org.basex.query.func.*;
 import org.basex.query.iter.*;
+import org.basex.query.util.list.*;
 import org.basex.query.value.*;
 import org.basex.query.value.item.*;
 import org.basex.query.value.map.*;
@@ -14,7 +17,7 @@ import org.basex.util.options.*;
 /**
  * Function implementation.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class MapMerge extends StandardFunc {
@@ -36,18 +39,37 @@ public final class MapMerge extends StandardFunc {
 
   @Override
   protected Expr opt(final CompileContext cc) throws QueryException {
-    final Type type = exprs[0].seqType().type;
-    if(type instanceof MapType) {
+    if(exprs[0].seqType().type instanceof MapType) {
+      // remove empty entries
+      if(exprs[0] instanceof List &&
+          ((Checks<Expr>) arg -> arg == XQMap.EMPTY).any(exprs[0].args())) {
+        final ExprList list = new ExprList();
+        for(final Expr arg : exprs[0].args()) if(arg != XQMap.EMPTY) list.add(arg);
+        exprs[0] = List.get(cc, info, list.finish());
+      }
+      // return simple arguments
+      final SeqType st = exprs[0].seqType();
+      if(st.one()) return exprs[0];
+
+      // rewrite (map:entry, map) to map:put
+      if(exprs.length == 1 && exprs[0] instanceof List && exprs[0].args().length == 2) {
+        final Expr[] args = exprs[0].args();
+        if(_MAP_ENTRY.is(args[0]) && args[1].seqType().instanceOf(SeqType.MAP_O)) {
+          return cc.function(_MAP_PUT, info, args[1], args[0].arg(0), args[0].arg(1));
+        }
+      }
+
       // check if duplicates will be combined (if yes, adjust occurrence of return type)
-      MapType mt = (MapType) type;
+      MapType mt = (MapType) st.type;
       // evaluate options (broaden type if values may be combined)
       if(exprs.length < 2 || !(exprs[1] instanceof Value) ||
         options(cc.qc).get(MergeOptions.DUPLICATES) == MergeDuplicates.COMBINE) {
-        final SeqType st = mt.declType;
-        mt = MapType.get(mt.keyType(), st.with(st.oneOrMore() ? Occ.ONE_MORE : Occ.ZERO_MORE));
+        final SeqType dt = mt.declType;
+        mt = MapType.get(mt.keyType(), dt.zero() ? dt : dt.union(Occ.ONE_OR_MORE));
       }
       exprType.assign(mt);
     }
+
     return this;
   }
 

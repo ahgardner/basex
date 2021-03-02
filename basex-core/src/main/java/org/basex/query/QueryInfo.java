@@ -20,7 +20,7 @@ import org.basex.util.list.*;
 /**
  * This class remembers descriptive query information sent back to the client.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class QueryInfo {
@@ -152,13 +152,13 @@ public final class QueryInfo {
 
   /**
    * Serializes all functions and variables reachable from the given main module.
-   * @param mod module to start from
+   * @param module module to start from
    * @return the string representation
    */
-  static String usedDecls(final MainModule mod) {
+  static String usedDecls(final MainModule module) {
     final IdentityHashMap<Scope, Object> map = new IdentityHashMap<>();
     final StringBuilder sb = new StringBuilder();
-    mod.visit(new ASTVisitor() {
+    module.visit(new ASTVisitor() {
       @Override
       public boolean staticVar(final StaticVar var) {
         if(map.put(var, var) == null) {
@@ -190,6 +190,6 @@ public final class QueryInfo {
         return true;
       }
     });
-    return sb.append(mod).toString();
+    return sb.append(module).toString();
   }
 }

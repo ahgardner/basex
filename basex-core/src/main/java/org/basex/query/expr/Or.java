@@ -8,13 +8,12 @@ import org.basex.query.util.list.*;
 import org.basex.query.value.item.*;
 import org.basex.query.var.*;
 import org.basex.util.*;
-import org.basex.util.ft.*;
 import org.basex.util.hash.*;
 
 /**
  * Or expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class Or extends Logical {
@@ -35,19 +34,6 @@ public final class Or extends Logical {
 
   @Override
   public Item item(final QueryContext qc, final InputInfo ii) throws QueryException {
-    // compute scoring
-    if(qc.scoring) {
-      double score = 0;
-      boolean found = false;
-      for(final Expr expr : exprs) {
-        final Item item = expr.ebv(qc, info);
-        found |= item.bool(info);
-        score += item.score();
-      }
-      return Bln.get(found, Scoring.avg(score, exprs.length));
-    }
-
-    // standard evaluation
     for(final Expr expr : exprs) {
       if(expr.ebv(qc, info).bool(info)) return Bln.TRUE;
     }
@@ -56,7 +42,7 @@ public final class Or extends Logical {
 
   @Override
   public Or copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new Or(info, copyAll(cc, vm, exprs));
+    return copyType(new Or(info, copyAll(cc, vm, exprs)));
   }
 
   @Override
@@ -84,7 +70,7 @@ public final class Or extends Logical {
   }
 
   @Override
-  public String toString() {
-    return toString(' ' + OR + ' ');
+  public void plan(final QueryString qs) {
+    qs.tokens(exprs, ' ' + OR + ' ', true);
   }
 }

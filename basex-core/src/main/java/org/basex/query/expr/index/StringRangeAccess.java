@@ -13,6 +13,7 @@ import org.basex.query.value.*;
 import org.basex.query.value.item.*;
 import org.basex.query.value.node.*;
 import org.basex.query.value.seq.*;
+import org.basex.query.value.type.*;
 import org.basex.query.var.*;
 import org.basex.util.*;
 import org.basex.util.hash.*;
@@ -21,7 +22,7 @@ import org.basex.util.list.*;
 /**
  * This index class retrieves string ranges from a value index.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class StringRangeAccess extends IndexAccess {
@@ -35,7 +36,7 @@ public final class StringRangeAccess extends IndexAccess {
    * @param db index database
    */
   public StringRangeAccess(final InputInfo info, final StringRange index, final IndexDb db) {
-    super(db, info, index.type());
+    super(db, info, index.type() == IndexType.TEXT ? NodeType.TEXT : NodeType.ATTRIBUTE);
     this.index = index;
   }
 
@@ -102,8 +103,13 @@ public final class StringRangeAccess extends IndexAccess {
   }
 
   @Override
+  public Expr inline(final InlineContext ic) throws QueryException {
+    return inlineDb(ic) ? optimize(ic.cc) : null;
+  }
+
+  @Override
   public Expr copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new StringRangeAccess(info, index, db.copy(cc, vm));
+    return copyType(new StringRangeAccess(info, index, db.copy(cc, vm)));
   }
 
   @Override
@@ -118,9 +124,9 @@ public final class StringRangeAccess extends IndexAccess {
   }
 
   @Override
-  public String toString() {
-    final Function func = index.type() == IndexType.TEXT ? Function._DB_TEXT_RANGE :
+  public void plan(final QueryString qs) {
+    final Function function = index.type() == IndexType.TEXT ? Function._DB_TEXT_RANGE :
       Function._DB_ATTRIBUTE_RANGE;
-    return func.args(db, Str.get(index.min), Str.get(index.max)).substring(1);
+    qs.function(function, db, Str.get(index.min), Str.get(index.max));
   }
 }

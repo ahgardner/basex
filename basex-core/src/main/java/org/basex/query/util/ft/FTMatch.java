@@ -2,12 +2,13 @@ package org.basex.query.util.ft;
 
 import java.util.*;
 
+import org.basex.util.*;
 import org.basex.util.list.*;
 
 /**
  * Match full-text container, referencing several {@link FTStringMatch} instances.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FTMatch extends ObjectList<FTStringMatch, FTMatch> {
@@ -22,8 +23,8 @@ public final class FTMatch extends ObjectList<FTStringMatch, FTMatch> {
    * Constructor with initial capacity.
    * @param capacity array capacity
    */
-  public FTMatch(final int capacity) {
-    super(new FTStringMatch[capacity]);
+  public FTMatch(final long capacity) {
+    super(new FTStringMatch[Array.checkCapacity(capacity)]);
   }
 
   /**

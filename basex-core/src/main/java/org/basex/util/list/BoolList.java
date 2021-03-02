@@ -7,7 +7,7 @@ import org.basex.util.*;
 /**
  * Resizable-array implementation for native booleans.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class BoolList extends ElementList {
@@ -25,8 +25,8 @@ public final class BoolList extends ElementList {
    * Constructor with initial capacity.
    * @param capacity array capacity
    */
-  public BoolList(final int capacity) {
-    list = new boolean[capacity];
+  public BoolList(final long capacity) {
+    list = new boolean[Array.checkCapacity(capacity)];
   }
 
   /**

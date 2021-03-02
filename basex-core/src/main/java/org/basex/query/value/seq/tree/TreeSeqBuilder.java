@@ -15,7 +15,7 @@ import org.basex.util.*;
  * A builder for creating a {@link Seq}uence (with at least 2 items) by prepending and appending
  * {@link Item}s.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class TreeSeqBuilder implements Iterable<Item> {
@@ -37,21 +37,13 @@ public final class TreeSeqBuilder implements Iterable<Item> {
   private final FingerTreeBuilder<Item> tree = new FingerTreeBuilder<>();
 
   /**
-   * Returns a {@link Value} representation of the given items.
-   * @param items array containing the items
-   * @param size number of items (must be {@code 2} or more)
-   * @param type type (can be {@code null})
+   * Concatenates two items.
+   * @param item1 first item
+   * @param item2 second item
    * @return the value
    */
-  public static Seq value(final Item[] items, final int size, final Type type) {
-    if(size <= TreeSeq.MAX_SMALL) {
-      final Item[] small = new Item[size];
-      Array.copy(items, size, small);
-      return new SmallSeq(small, type);
-    }
-    final TreeSeqBuilder tsb = new TreeSeqBuilder();
-    for(int i = 0; i < size; i++) tsb.add(items[i]);
-    return tsb.seq(type);
+  public static Seq concat(final Item item1, final Item item2) {
+    return new SmallSeq(new Item[] { item1, item2 }, item1.type.union(item2.type));
   }
 
   /**
@@ -123,16 +115,16 @@ public final class TreeSeqBuilder implements Iterable<Item> {
 
   /**
    * Appends the items of the given value to this builder.
-   * @param val value to append
+   * @param value value to append
    * @param qc query context
    * @return this builder for convenience
    */
-  public TreeSeqBuilder add(final Value val, final QueryContext qc) {
+  public TreeSeqBuilder add(final Value value, final QueryContext qc) {
     // shortcut for adding single items
-    if(val.isItem()) return add((Item) val);
+    if(value.isItem()) return add((Item) value);
 
-    if(!(val instanceof BigSeq)) {
-      final BasicIter<?> iter = val.iter();
+    if(!(value instanceof BigSeq)) {
+      final BasicIter<?> iter = value.iter();
       for(Item item; (item = iter.next()) != null;) {
         qc.checkStop();
         add(item);
@@ -140,7 +132,7 @@ public final class TreeSeqBuilder implements Iterable<Item> {
       return this;
     }
 
-    final BigSeq big = (BigSeq) val;
+    final BigSeq big = (BigSeq) value;
     final Item[] ls = big.left, rs = big.right;
     final FingerTree<Item, Item> midTree = big.middle;
     if(midTree.isEmpty()) {
@@ -223,21 +215,21 @@ public final class TreeSeqBuilder implements Iterable<Item> {
 
   @Override
   public String toString() {
-    final StringBuilder sb = new StringBuilder(Util.className(this)).append('[');
+    final TokenBuilder tb = new TokenBuilder().add(getClass()).add('[');
     if(tree.isEmpty()) {
       final int n = inLeft + inRight, first = (mid - inLeft + CAP) % CAP;
       if(n > 0) {
-        sb.append(vals[first]);
-        for(int i = 1; i < n; i++) sb.append(", ").append(vals[(first + i) % CAP]);
+        tb.add(vals[first]);
+        for(int i = 1; i < n; i++) tb.add(", ").add(vals[(first + i) % CAP]);
       }
     } else {
       final int first = (mid - inLeft + CAP) % CAP;
-      sb.append(vals[first]);
-      for(int i = 1; i < inLeft; i++) sb.append(", ").append(vals[(first + i) % CAP]);
-      for(final Item item : tree) sb.append(", ").append(item);
-      for(int i = 0; i < inRight; i++) sb.append(", ").append(vals[(mid + i) % CAP]);
+      tb.add(vals[first]);
+      for(int i = 1; i < inLeft; i++) tb.add(", ").add(vals[(first + i) % CAP]);
+      for(final Item item : tree) tb.add(", ").add(item);
+      for(int i = 0; i < inRight; i++) tb.add(", ").add(vals[(mid + i) % CAP]);
     }
-    return sb.append(']').toString();
+    return tb.add(']').toString();
   }
 
   @Override

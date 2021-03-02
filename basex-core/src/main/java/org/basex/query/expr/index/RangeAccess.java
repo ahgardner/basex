@@ -13,6 +13,7 @@ import org.basex.query.value.*;
 import org.basex.query.value.item.*;
 import org.basex.query.value.node.*;
 import org.basex.query.value.seq.*;
+import org.basex.query.value.type.*;
 import org.basex.query.var.*;
 import org.basex.util.*;
 import org.basex.util.hash.*;
@@ -21,7 +22,7 @@ import org.basex.util.list.*;
 /**
  * This index class retrieves numeric ranges from a value index.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class RangeAccess extends IndexAccess {
@@ -35,7 +36,7 @@ public final class RangeAccess extends IndexAccess {
    * @param db index database
    */
   public RangeAccess(final InputInfo info, final NumericRange index, final IndexDb db) {
-    super(db, info, index.type());
+    super(db, info, index.type() == IndexType.TEXT ? NodeType.TEXT : NodeType.ATTRIBUTE);
     this.index = index;
   }
 
@@ -67,8 +68,13 @@ public final class RangeAccess extends IndexAccess {
   }
 
   @Override
+  public Expr inline(final InlineContext ic) throws QueryException {
+    return inlineDb(ic) ? optimize(ic.cc) : null;
+  }
+
+  @Override
   public Expr copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new RangeAccess(info, index, db.copy(cc, vm));
+    return copyType(new RangeAccess(info, index, db.copy(cc, vm)));
   }
 
   @Override
@@ -83,9 +89,9 @@ public final class RangeAccess extends IndexAccess {
   }
 
   @Override
-  public String toString() {
-    final Function func = index.type() == IndexType.TEXT ? Function._DB_TEXT_RANGE :
+  public void plan(final QueryString qs) {
+    final Function function = index.type() == IndexType.TEXT ? Function._DB_TEXT_RANGE :
       Function._DB_ATTRIBUTE_RANGE;
-    return func.args(db, Dbl.get(index.min), Dbl.get(index.max)).substring(1);
+    qs.function(function, db, Dbl.get(index.min), Dbl.get(index.max));
   }
 }

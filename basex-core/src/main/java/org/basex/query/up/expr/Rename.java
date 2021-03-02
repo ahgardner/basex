@@ -22,7 +22,7 @@ import org.basex.util.hash.*;
 /**
  * Rename expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Lukas Kircher
  */
 public final class Rename extends Update {
@@ -44,16 +44,16 @@ public final class Rename extends Update {
 
     // check target constraints
     if(item == null) throw UPSEQEMP_X.get(info, Util.className(this));
-    final Item i2 = iter.next();
-    if(i2 != null) throw UPWRTRGSINGLE_X.get(info, ValueBuilder.concat(item, i2, qc));
+    final Item item2 = iter.next();
+    if(item2 != null) throw UPWRTRGSINGLE_X.get(info, ValueBuilder.concat(item, item2, qc));
 
     final CNode ex;
-    if(item.type == NodeType.ELM) {
-      ex = new CElem(sc, info, exprs[1], null);
-    } else if(item.type == NodeType.ATT) {
-      ex = new CAttr(sc, info, exprs[1], false, Empty.VALUE);
-    } else if(item.type == NodeType.PI) {
-      ex = new CPI(sc, info, exprs[1], Empty.VALUE);
+    if(item.type == NodeType.ELEMENT) {
+      ex = new CElem(sc, info, false, exprs[1], new Atts());
+    } else if(item.type == NodeType.ATTRIBUTE) {
+      ex = new CAttr(sc, info, false, exprs[1], Empty.VALUE);
+    } else if(item.type == NodeType.PROCESSING_INSTRUCTION) {
+      ex = new CPI(sc, info, false, exprs[1], Empty.VALUE);
     } else {
       throw UPWRTRGTYP_X.get(info, item);
     }
@@ -62,9 +62,8 @@ public final class Rename extends Update {
     final ANode target = (ANode) item;
 
     // check namespace conflicts...
-    if(target.type == NodeType.ELM || target.type == NodeType.ATT) {
-      final byte[] rp = rename.prefix();
-      final byte[] ru = rename.uri();
+    if(target.type == NodeType.ELEMENT || target.type == NodeType.ATTRIBUTE) {
+      final byte[] rp = rename.prefix(), ru = rename.uri();
       final Atts at = target.nsScope(sc);
       final int as = at.size();
       for(int a = 0; a < as; a++) {
@@ -81,7 +80,7 @@ public final class Rename extends Update {
 
   @Override
   public Expr copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new Rename(sc, info, exprs[0].copy(cc, vm), exprs[1].copy(cc, vm));
+    return copyType(new Rename(sc, info, exprs[0].copy(cc, vm), exprs[1].copy(cc, vm)));
   }
 
   @Override
@@ -90,7 +89,7 @@ public final class Rename extends Update {
   }
 
   @Override
-  public String toString() {
-    return RENAME + ' ' + NODE + ' ' + exprs[0] + ' ' + AS + ' ' + exprs[1];
+  public void plan(final QueryString qs) {
+    qs.token(RENAME).token(NODE).token(exprs[0]).token(AS).token(exprs[1]);
   }
 }

@@ -11,7 +11,7 @@ import org.basex.util.hash.*;
 /**
  * A FLWOR clause.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public abstract class Clause extends ParseExpr {
@@ -54,7 +54,7 @@ public abstract class Clause extends ParseExpr {
   public abstract Clause optimize(CompileContext cc) throws QueryException;
 
   @Override
-  public abstract Clause inline(ExprInfo ei, Expr ex, CompileContext cc) throws QueryException;
+  public abstract Clause inline(InlineContext ic) throws QueryException;
 
   @Override
   public abstract Clause copy(CompileContext cc, IntObjMap<Var> vm);
@@ -100,5 +100,5 @@ public abstract class Clause extends ParseExpr {
    * Calculates the minimum and maximum number of results.
    * @param minMax minimum and maximum number of incoming tuples
    */
-  void calcSize(@SuppressWarnings("unused") final long[] minMax) { }
+  public void calcSize(@SuppressWarnings("unused") final long[] minMax) { }
 }

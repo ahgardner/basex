@@ -11,7 +11,7 @@ import org.basex.util.*;
 /**
  * Insert before primitive.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Lukas Kircher
  */
 public final class InsertBefore extends NodeCopy {
@@ -30,7 +30,7 @@ public final class InsertBefore extends NodeCopy {
   public void merge(final Update update) {
     final InsertBefore newOne = (InsertBefore) update;
     final ANodeList newInsert = newOne.nodes;
-    for(final ANode n : newInsert) nodes.add(n);
+    for(final ANode node : newInsert) nodes.add(node);
   }
 
   @Override
@@ -39,5 +39,6 @@ public final class InsertBefore extends NodeCopy {
   }
 
   @Override
-  public void update(final NamePool pool) { }
+  public void update(final NamePool pool) {
+  }
 }

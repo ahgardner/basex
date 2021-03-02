@@ -22,7 +22,7 @@ import org.basex.util.hash.*;
 /**
  * Abstract FTContains expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FTContains extends Single {
@@ -36,7 +36,7 @@ public final class FTContains extends Single {
    * @param info input info
    */
   public FTContains(final Expr expr, final FTExpr ftexpr, final InputInfo info) {
-    super(info, expr, SeqType.BLN_O);
+    super(info, expr, SeqType.BOOLEAN_O);
     this.ftexpr = ftexpr;
   }
 
@@ -49,15 +49,15 @@ public final class FTContains extends Single {
     qc.ftLexer = lexer;
     try {
       double score = 0;
-      int c = 0;
-      boolean f = false;
+      int count = 0;
+      boolean found = false;
       final FTPosData ftPosData = qc.ftPosData;
       for(Item item; (item = qc.next(iter)) != null;) {
         lexer.init(item.string(info));
         final FTNode it = ftexpr.item(qc, info);
         final FTMatches all = it.matches();
         if(all.matches()) {
-          f = true;
+          found = true;
           if(scoring) score += it.score();
           // cache entry for visualizations or ft:mark/ft:extract
           if(ftPosData != null && item instanceof DBNode) {
@@ -65,9 +65,9 @@ public final class FTContains extends Single {
             ftPosData.add(node.data(), node.pre(), all);
           }
         }
-        c++;
+        count++;
       }
-      return scoring ? Bln.get(f, Scoring.avg(score, c)) : Bln.get(f);
+      return found && scoring ? Bln.get(Scoring.avg(score, count)) : Bln.get(found);
     } finally {
       qc.ftLexer = tmp;
     }
@@ -82,7 +82,7 @@ public final class FTContains extends Single {
 
   @Override
   public Expr optimize(final CompileContext cc) throws QueryException {
-    expr = expr.simplifyFor(Simplify.ATOM, cc);
+    expr = expr.simplifyFor(Simplify.STRING, cc);
     return expr.seqType().zero() ? cc.function(Function.BOOLEAN, info, expr) : this;
   }
 
@@ -92,8 +92,8 @@ public final class FTContains extends Single {
   }
 
   @Override
-  public boolean inlineable(final Var var) {
-    return super.inlineable(var) && ftexpr.inlineable(var);
+  public boolean inlineable(final InlineContext ic) {
+    return super.inlineable(ic) && ftexpr.inlineable(ic);
   }
 
   @Override
@@ -102,13 +102,12 @@ public final class FTContains extends Single {
   }
 
   @Override
-  public Expr inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-    final Expr inlined = expr.inline(ei, ex, cc);
+  public Expr inline(final InlineContext ic) throws QueryException {
+    final Expr inlined = expr.inline(ic);
     if(inlined != null) expr = inlined;
-    final FTExpr ftinlined = ftexpr.inline(ei, ex, cc);
+    final FTExpr ftinlined = ftexpr.inline(ic);
     if(ftinlined != null) ftexpr = ftinlined;
-    return inlined != null || ftinlined != null ? optimize(cc) : null;
+    return inlined != null || ftinlined != null ? optimize(ic.cc) : null;
   }
 
   @Override
@@ -134,7 +133,7 @@ public final class FTContains extends Single {
 
   @Override
   public Expr copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new FTContains(expr.copy(cc, vm), ftexpr.copy(cc, vm), info);
+    return copyType(new FTContains(expr.copy(cc, vm), ftexpr.copy(cc, vm), info));
   }
 
   @Override
@@ -149,7 +148,7 @@ public final class FTContains extends Single {
   }
 
   @Override
-  public String toString() {
-    return expr + " " + CONTAINS + ' ' + TEXT + ' ' + ftexpr;
+  public void plan(final QueryString qs) {
+    qs.token(expr).token(CONTAINS).token(TEXT).token(ftexpr);
   }
 }

@@ -16,7 +16,7 @@ import org.basex.util.list.*;
 /**
  * This class contains all full-text options.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FTOpt extends ExprInfo {
@@ -117,7 +117,7 @@ public final class FTOpt extends ExprInfo {
   }
 
   @Override
-  public String toString() {
+  public void plan(final QueryString qs) {
     final StringList list = new StringList();
     if(is(WC)) list.add(WILDCARDS);
     if(is(FZ)) list.add(FUZZY);
@@ -129,8 +129,6 @@ public final class FTOpt extends ExprInfo {
     if(ln != null) list.add(LANGUAGE + " \"" + ln + '"');
     if(th != null) list.add(THESAURUS);
 
-    final StringBuilder sb = new StringBuilder();
-    for(final String opt : list) sb.append(' ').append(USING).append(' ').append(opt);
-    return sb.toString();
+    for(final String opt : list) qs.token(USING).token(opt);
   }
 }

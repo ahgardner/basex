@@ -21,7 +21,7 @@ import org.basex.util.hash.*;
 /**
  * Integer range expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class CmpIR extends Single {
@@ -41,7 +41,7 @@ public final class CmpIR extends Single {
    * @param info input info
    */
   private CmpIR(final Expr expr, final long min, final long max, final InputInfo info) {
-    super(info, expr, SeqType.BLN_O);
+    super(info, expr, SeqType.BOOLEAN_O);
     this.min = min;
     this.max = max;
   }
@@ -73,7 +73,7 @@ public final class CmpIR extends Single {
     final Expr expr1 = cmp.exprs[0], expr2 = cmp.exprs[1];
 
     // only rewrite deterministic integer comparisons
-    if(cmp.has(Flag.NDT) || !expr1.seqType().type.instanceOf(AtomType.ITR)) return cmp;
+    if(cmp.has(Flag.NDT) || !expr1.seqType().type.instanceOf(AtomType.INTEGER)) return cmp;
 
     long mn, mx;
     if(expr2 instanceof RangeSeq) {
@@ -110,10 +110,10 @@ public final class CmpIR extends Single {
     final SeqType st = expr.seqType();
     single = st.zeroOrOne() && !st.mayBeArray();
 
+    if(expr instanceof Value) return cc.preEval(this);
+
     Expr ex = this;
-    if(expr instanceof Value) {
-      ex = item(cc.qc, info);
-    } else if(Function.POSITION.is(expr)) {
+    if(Function.POSITION.is(expr)) {
       final long mn = Math.max(min, 1), mx = max - mn + 1;
       ex = ItrPos.get(RangeSeq.get(mn, mx, true), OpV.EQ, info);
     }
@@ -176,7 +176,7 @@ public final class CmpIR extends Single {
   public Expr copy(final CompileContext cc, final IntObjMap<Var> vm) {
     final CmpIR cmp = new CmpIR(expr.copy(cc, vm), min, max, info);
     cmp.single = single;
-    return cmp;
+    return copyType(cmp);
   }
 
   @Override
@@ -198,15 +198,16 @@ public final class CmpIR extends Single {
   }
 
   @Override
-  public String toString() {
-    final TokenBuilder tb = new TokenBuilder().add(PAREN1);
+  public void plan(final QueryString qs) {
+    qs.token(expr);
     if(min == max) {
-      tb.add(expr).add(" = ").add(min);
+      qs.token("=").token(min);
+    } else if(min != MIN_VALUE && max != MAX_VALUE) {
+      qs.token("=").token(min).token(TO).token(max);
+    } else if(min != MIN_VALUE) {
+      qs.token(">=").token(min);
     } else {
-      if(min != MIN_VALUE) tb.add(expr).add(" >= ").add(min);
-      if(min != MIN_VALUE && max != MAX_VALUE) tb.add(' ').add(AND).add(' ');
-      if(max != MAX_VALUE) tb.add(expr).add(" <= ").add(max);
+      qs.token("<=").token(max);
     }
-    return tb.add(PAREN2).toString();
   }
 }

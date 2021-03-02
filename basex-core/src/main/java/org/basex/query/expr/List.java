@@ -16,11 +16,12 @@ import org.basex.query.value.type.*;
 import org.basex.query.var.*;
 import org.basex.util.*;
 import org.basex.util.hash.*;
+import org.basex.util.list.*;
 
 /**
  * List of expressions that have been separated by commas.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class List extends Arr {
@@ -31,6 +32,19 @@ public final class List extends Arr {
    */
   public List(final InputInfo info, final Expr... exprs) {
     super(info, SeqType.ITEM_ZM, exprs);
+  }
+
+  /**
+   * Creates a new, optimized list expression, or the first expression if only one was specified.
+   * @param cc compilation context
+   * @param ii input info
+   * @param exprs one or more expressions
+   * @return filter root, path or filter expression
+   * @throws QueryException query exception
+   */
+  public static Expr get(final CompileContext cc, final InputInfo ii, final Expr... exprs)
+      throws QueryException {
+    return exprs.length == 1 ? exprs[0] : new List(ii, exprs).optimize(cc);
   }
 
   @Override
@@ -62,25 +76,33 @@ public final class List extends Arr {
 
     final int el = exprs.length;
     if(el == 0) return Empty.VALUE;
-    if(el == 1) return exprs[0];
+
+    // rewrite identical expressions to util:replicate
+    int e = 0;
+    while(++e < el && exprs[e].equals(exprs[0]));
+    if(e == el) return el == 1 ? exprs[0] : cc.replicate(exprs[0], Int.get(el), info);
 
     // determine result type, compute number of results, set expression type
-    Type type = null;
+    SeqType st = null;
     Occ occ = Occ.ZERO;
     long size = 0;
     for(final Expr expr : exprs) {
-      final SeqType et = expr.seqType();
-      if(!et.zero()) type = type == null ? et.type : type.union(et.type);
+      final SeqType st2 = expr.seqType();
+      if(!st2.zero()) st = st == null ? st2 : st.union(st2);
       final long sz = expr.size();
       if(size != -1) size = sz == -1 ? -1 : size + sz;
-      occ = occ.add(expr.seqType().occ);
+      occ = occ.add(st2.occ);
     }
-    exprType.assign(type, occ, size);
+    exprType.assign(st != null ? st : SeqType.EMPTY_SEQUENCE_Z, occ, size);
 
     // pre-evaluate list; skip expressions with large result sizes
     if(allAreValues(true)) {
+      // rewrite to range sequence: 1, 2, 3  ->  1 to 3
+      final Expr range = toRange();
+      if(range != null) return cc.replaceWith(this, range);
+
       Type tp = null;
-      final Value[] values = new Value[exprs.length];
+      final Value[] values = new Value[el];
       int vl = 0;
       for(final Expr expr : exprs) {
         cc.qc.checkStop();
@@ -101,6 +123,32 @@ public final class List extends Arr {
     }
 
     return this;
+  }
+
+  /**
+   * Tries to rewrite the list to a range sequence.
+   * @return rewritten expression or {@code null}
+   */
+  private Expr toRange() {
+    Long start = null, end = null;
+    for(final Expr expr : exprs) {
+      long s, e;
+      if(expr instanceof Int && expr.seqType().type == AtomType.INTEGER) {
+        s = ((Int) expr).itr();
+        e = s + 1;
+      } else if(expr instanceof RangeSeq) {
+        final long[] range = ((RangeSeq) expr).range(true);
+        s = range[0];
+        e = range[1] + 1;
+        if(e <= s) return null;
+      } else {
+        return null;
+      }
+      if(start == null) start = s;
+      else if(end != s) return null;
+      end = e;
+    }
+    return RangeSeq.get(start, end - start, true);
   }
 
   @Override
@@ -174,17 +222,22 @@ public final class List extends Arr {
       // otherwise, rewrite list to union
       expr = toUnion(cc);
     } else if(mode == Simplify.DISTINCT) {
-      final ExprList list = new ExprList(exprs.length);
-      for(final Expr ex : exprs) list.addUnique(ex);
-      if(list.size() != exprs.length) {
+      final int el = exprs.length;
+      final ExprList list = new ExprList(el);
+      for(final Expr ex : exprs) list.addUnique(ex.simplifyFor(mode, cc));
+      exprs = list.finish();
+      if(exprs.length != el) {
         // remove duplicate list expressions
-        expr = cc.replaceWith(this, new List(info, list.finish()).optimize(cc));
+        expr = cc.simplify(this, List.get(cc, info, exprs));
+      } else if(seqType().type == AtomType.INTEGER) {
+        // merge numbers and ranges
+        expr = toDistinctRange();
       } else {
         // otherwise, rewrite list to union
         expr = toUnion(cc);
       }
-    } else {
-      if(simplifyAll(mode, cc)) expr = optimize(cc);
+    } else if(simplifyAll(mode, cc)) {
+      expr = optimize(cc);
     }
     return expr == this ? super.simplifyFor(mode, cc) : expr.simplifyFor(mode, cc);
   }
@@ -200,6 +253,35 @@ public final class List extends Arr {
       cc.replaceWith(this, new Union(info, exprs)).optimize(cc) : this;
   }
 
+  /**
+   * If possible, rewrites the list to a distinct range expression.
+   * @return range or original expression
+   */
+  public Expr toDistinctRange() {
+    long start = 0, end = 0;
+    final LongList list = new LongList(2);
+    for(final Expr ex : exprs) {
+      if(ex instanceof Int) {
+        list.add(((Int) ex).itr());
+      } else if(ex instanceof RangeSeq) {
+        list.add(((RangeSeq) ex).range(false));
+      } else {
+        return this;
+      }
+      final long mn = list.get(0), mx = list.peek() + 1;
+      if(start == end) {
+        start = mn;
+        end = mx;
+      } else {
+        if(mn < start - 1 || mx > end + 1) return this;
+        if(mn == start - 1) start = mn;
+        if(mx == end + 1) end = mx;
+      }
+      list.reset();
+    }
+    return RangeSeq.get(start, end - start, true);
+  }
+
   @Override
   public Expr copy(final CompileContext cc, final IntObjMap<Var> vm) {
     return copyType(new List(info, copyAll(cc, vm, exprs)));
@@ -212,7 +294,7 @@ public final class List extends Arr {
 
   @Override
   public boolean vacuous() {
-    return ((Checks<Expr>) expr -> expr.vacuous()).all(exprs);
+    return ((Checks<Expr>) Expr::vacuous).all(exprs);
   }
 
   @Override
@@ -222,11 +304,11 @@ public final class List extends Arr {
 
   @Override
   public String description() {
-    return "expression list";
+    return "list";
   }
 
   @Override
-  public String toString() {
-    return toString(SEP);
+  public void plan(final QueryString qs) {
+    qs.params(exprs);
   }
 }

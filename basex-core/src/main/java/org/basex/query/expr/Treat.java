@@ -9,7 +9,7 @@ import org.basex.util.*;
 /**
  * Treat as expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class Treat extends TypeCheck {
@@ -31,7 +31,7 @@ public final class Treat extends TypeCheck {
   }
 
   @Override
-  public TypeCheck get(final Expr ex, final SeqType st) {
+  TypeCheck get(final Expr ex, final SeqType st) {
     return new Treat(sc, info, ex, st);
   }
 }

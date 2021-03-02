@@ -11,7 +11,7 @@ import org.junit.jupiter.api.*;
 /**
  * Test class for the {@link TextInput} method.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class TextInputTest {
@@ -56,8 +56,7 @@ public final class TextInputTest {
   /**
    * Test unknown encoding.
    */
-  @Test
-  public void unknownEncoding() {
+  @Test public void unknownEncoding() {
     assertThrows(IOException.class, () -> encoding("unknown", ""));
   }
 

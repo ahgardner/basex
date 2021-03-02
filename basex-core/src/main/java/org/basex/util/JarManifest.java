@@ -4,11 +4,12 @@ import java.io.*;
 import java.net.*;
 import java.util.*;
 import java.util.jar.*;
+import java.util.jar.Attributes.Name;
 
 /**
  * Utility class to retrieve the manifest attributes of a JAR in the classpath.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Dimitar Popov
  */
 final class JarManifest {
@@ -38,7 +39,7 @@ final class JarManifest {
         Util.stack(ex);
       }
     }
-    MAP = map;
+    MAP = map != null ? map : new Attributes(0);
   }
 
   /**
@@ -46,12 +47,16 @@ final class JarManifest {
    * @param key key
    * @return value or {@code null}
    */
-  public static Object get(final String key) {
-    if(MAP != null) {
-      for(final Map.Entry<Object, Object> entry : MAP.entrySet()) {
-        if(key.equals(entry.getKey().toString())) return entry.getValue();
-      }
-    }
-    return null;
+  public static String get(final String key) {
+    return MAP.getValue(key);
+  }
+
+  /**
+   * Returns the manifest value for the specified key.
+   * @param key key
+   * @return value or {@code null}
+   */
+  public static String get(final Name key) {
+    return MAP.getValue(key);
   }
 }

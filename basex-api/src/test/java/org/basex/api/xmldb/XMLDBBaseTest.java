@@ -10,7 +10,7 @@ import org.basex.util.*;
 /**
  * Base class for all XMLDB tests.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Dimitar Popov
  */
 public abstract class XMLDBBaseTest extends SandboxTest {
@@ -19,8 +19,7 @@ public abstract class XMLDBBaseTest extends SandboxTest {
   /** XMLDB driver. */
   static final String DRIVER = BXDatabase.class.getName();
   /** Database/document path. */
-  static final String URL =
-      "xmldb:" + Prop.PROJECT_NAME + "://" + S_LOCALHOST + ':' + DB_PORT + '/';
+  static final String URL = "xmldb:" + Prop.PROJECT + "://" + S_LOCALHOST + ':' + DB_PORT + '/';
   /** Name of the collection. */
   static final String COLL = "XMLDB";
   /** Database/document path. */

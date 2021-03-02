@@ -47,7 +47,7 @@ import org.basex.util.similarity.*;
  *   {@code pre1/pos1, pre2/pos2, pre3/pos3, ...} [{@link Num}]</li>
  * </ul>
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FTIndex extends ValueIndex {
@@ -150,6 +150,7 @@ public final class FTIndex extends ValueIndex {
   @Override
   public EntryIterator entries(final IndexEntries entries) {
     final byte[] token = entries.token();
+
     return new EntryIterator() {
       int p = token.length - 1, start, end, nr;
       boolean inner;
@@ -186,6 +187,7 @@ public final class FTIndex extends ValueIndex {
           return null;
         }
       }
+
       @Override
       public int count() {
         return nr;
@@ -225,12 +227,7 @@ public final class FTIndex extends ValueIndex {
 
     // try to find cached text (requested length may vary in full-text requests)
     final int key = (ti << 24) + pos;
-    byte[] text = ctext.get(key);
-    if(text == null) {
-      text = dataY.readBytes(pos, ti);
-      ctext.put(key, text);
-    }
-    return text;
+    return ctext.computeIfAbsent(key, () -> dataY.readBytes(pos, ti));
   }
 
   @Override

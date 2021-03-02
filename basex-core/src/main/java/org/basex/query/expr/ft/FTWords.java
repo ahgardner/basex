@@ -29,7 +29,7 @@ import org.basex.util.list.*;
 /**
  * FTWords expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FTWords extends FTExpr {
@@ -52,7 +52,7 @@ public final class FTWords extends FTExpr {
   private FTOpt ftOpt;
 
   /**
-   * Constructor for scan-based evaluation.
+   * Constructor for sequential evaluation.
    * @param info input info
    * @param query query expression
    * @param mode search mode
@@ -95,12 +95,14 @@ public final class FTWords extends FTExpr {
       for(int o = 0; o < ol; o++) occ[o] = occ[o].compile(cc);
     }
     query = query.compile(cc);
+    ftOpt = cc.qc.ftOpt().copy();
+
     return optimize(cc);
   }
 
   @Override
   public FTWords optimize(final CompileContext cc) throws QueryException {
-    init(cc.qc, cc.qc.ftOpt().copy());
+    optimize(cc.qc);
     if(occ != null) {
       final int ol = occ.length;
       for(int o = 0; o < ol; o++) occ[o] = occ[o].simplifyFor(Simplify.NUMBER, cc);
@@ -111,17 +113,24 @@ public final class FTWords extends FTExpr {
   /**
    * Prepares query evaluation.
    * @param qc query context
-   * @param opt full-text options
    * @return self reference
    * @throws QueryException query exception
    */
-  public FTWords init(final QueryContext qc, final FTOpt opt) throws QueryException {
+  public FTWords optimize(final QueryContext qc) throws QueryException {
     // pre-evaluate tokens, choose fast evaluation for default search options
     if(query instanceof Value) {
       inputs = inputs(qc);
       simple = mode == FTMode.ANY && occ == null;
     }
+    return this;
+  }
 
+  /**
+   * Assigns full-text options.
+   * @param opt full-text options
+   * @return self reference
+   */
+  public FTWords ftOpt(final FTOpt opt) {
     ftOpt = opt;
     return this;
   }
@@ -449,13 +458,13 @@ public final class FTWords extends FTExpr {
   }
 
   @Override
-  public boolean inlineable(final Var var) {
+  public boolean inlineable(final InlineContext ic) {
     if(occ != null) {
       for(final Expr o : occ) {
-        if(!o.inlineable(var)) return false;
+        if(!o.inlineable(ic)) return false;
       }
     }
-    return query.inlineable(var);
+    return query.inlineable(ic);
   }
 
   @Override
@@ -464,16 +473,14 @@ public final class FTWords extends FTExpr {
   }
 
   @Override
-  public FTExpr inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-
-    boolean changed = occ != null && inlineAll(ei, ex, occ, cc);
-    final Expr inlined = query.inline(ei, ex, cc);
+  public FTExpr inline(final InlineContext ic) throws QueryException {
+    boolean changed = occ != null && ic.inline(occ);
+    final Expr inlined = query.inline(ic);
     if(inlined != null) {
       query = inlined;
       changed = true;
     }
-    return changed ? optimize(cc) : null;
+    return changed ? optimize(ic.cc) : null;
   }
 
   @Override
@@ -485,7 +492,7 @@ public final class FTWords extends FTExpr {
     ftw.inputs = inputs;
     ftw.ftOpt = ftOpt;
     if(db != null) ftw.db = db.copy(cc, vm);
-    return ftw;
+    return copyType(ftw);
   }
 
   @Override
@@ -517,30 +524,28 @@ public final class FTWords extends FTExpr {
   }
 
   @Override
-  public String toString() {
-    final StringBuilder sb = new StringBuilder();
-    final boolean str = query instanceof AStr;
-    if(!str) sb.append("{ ");
-    sb.append(query);
-    if(!str) sb.append(" }");
+  public void plan(final QueryString qs) {
+    if(query instanceof AStr) {
+      qs.token(query);
+    } else {
+      qs.brace(query);
+    }
     switch(mode) {
       case ALL:
-        sb.append(' ' + ALL);
+        qs.token(ALL);
         break;
       case ALL_WORDS:
-        sb.append(' ' + ALL + ' ' + WORDS);
+        qs.token(ALL).token(WORDS);
         break;
       case ANY_WORD:
-        sb.append(' ' + ANY + ' ' + WORD);
+        qs.token(ANY).token(WORD);
         break;
       case PHRASE:
-        sb.append(' ' + PHRASE);
+        qs.token(PHRASE);
         break;
       default:
     }
-    if(occ != null) sb.append(OCCURS + ' ').append(occ[0]).append(' ').append(TO).append(' ').
-      append(occ[1]).append(' ').append(TIMES);
-    if(ftOpt != null) sb.append(ftOpt);
-    return sb.toString();
+    if(occ != null) qs.token(OCCURS).token(occ[0]).token(TO).token(occ[1]).token(TIMES);
+    if(ftOpt != null) qs.token(ftOpt);
   }
 }

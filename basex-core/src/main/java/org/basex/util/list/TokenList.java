@@ -8,7 +8,7 @@ import org.basex.util.hash.*;
 /**
  * Resizable-array implementation for tokens (byte arrays).
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class TokenList extends ObjectList<byte[], TokenList> {
@@ -23,17 +23,17 @@ public final class TokenList extends ObjectList<byte[], TokenList> {
    * Constructor with initial capacity.
    * @param capacity array capacity
    */
-  public TokenList(final int capacity) {
-    super(new byte[capacity][]);
+  public TokenList(final long capacity) {
+    super(new byte[Array.checkCapacity(capacity)][]);
   }
 
   /**
    * Constructor, specifying a resize factor. Smaller values are more memory-saving,
    * while larger will provide better performance.
-   * @param resize resize factor
+   * @param factor resize factor
    */
-  public TokenList(final double resize) {
-    factor = resize;
+  public TokenList(final double factor) {
+    this.factor = factor;
   }
 
   /**
@@ -103,7 +103,7 @@ public final class TokenList extends ObjectList<byte[], TokenList> {
    * @return self reference
    */
   public TokenList sort(final boolean cs, final boolean ascending) {
-    return sort(cs ? COMP : LC_COMP, ascending);
+    return sort(cs ? COMPARATOR : LC_COMPARATOR, ascending);
   }
 
   @Override

@@ -32,7 +32,7 @@ import org.basex.util.options.Options.*;
 /**
  * HTTP Client.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Rositsa Shadura
  * @author Michael Seiferle
  */
@@ -253,7 +253,7 @@ public final class HttpClient {
     } else {
       // otherwise @media-type of <http:body/> is considered
       ct = request.payloadAtts.get(SerializerOptions.MEDIA_TYPE.name());
-      if(request.isMultipart) ct = Strings.concat(ct, "; ", BOUNDARY, '=', request.boundary());
+      if(request.isMultipart) ct = Strings.concat(ct, "; ", BOUNDARY, "=", request.boundary());
     }
     conn.setRequestProperty(CONTENT_TYPE, ct);
   }

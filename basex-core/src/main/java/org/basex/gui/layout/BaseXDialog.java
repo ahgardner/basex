@@ -19,7 +19,7 @@ import org.basex.util.*;
 /**
  * This superclass in inherited by all dialog windows.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public abstract class BaseXDialog extends JDialog implements BaseXWindow {
@@ -241,7 +241,7 @@ public abstract class BaseXDialog extends JDialog implements BaseXWindow {
       Desktop.getDesktop().browse(new URI(url));
     } catch(final Exception ex) {
       Util.debug(ex);
-      error(gui, Util.info(H_BROWSER_ERROR_X, Prop.URL));
+      error(gui, Util.info(H_BROWSER_ERROR_X, PUBLIC_URL));
     }
   }
 

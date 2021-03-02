@@ -18,7 +18,7 @@ import org.basex.util.hash.*;
 /**
  * An XQuery main module.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class MainModule extends AModule {
@@ -101,7 +101,7 @@ public final class MainModule extends AModule {
       @Override
       public Item next() throws QueryException {
         if(more) {
-          final Item item = qc.next(iter);
+          final Item item = iter.next();
           if(item != null) return item;
           more = false;
           VarScope.exit(fp, qc);
@@ -161,8 +161,8 @@ public final class MainModule extends AModule {
   }
 
   @Override
-  public String toString() {
-    return expr.toString();
+  public void plan(final QueryString qs) {
+    qs.token(expr);
   }
 
   /**

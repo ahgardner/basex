@@ -16,7 +16,7 @@ import org.basex.util.*;
 /**
  * Functions on relational databases.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Rositsa Shadura
  */
 public final class SqlExecutePrepared extends SqlExecute {
@@ -26,21 +26,21 @@ public final class SqlExecutePrepared extends SqlExecute {
   private static final QNm Q_PARAMETER = new QNm(SQL_PREFIX, "parameter", SQL_URI);
 
   /** Type int. */
-  private static final byte[] INT = AtomType.INT.string();
+  private static final byte[] INT = AtomType.INT.qname().local();
   /** Type string. */
-  private static final byte[] STRING = AtomType.STR.string();
+  private static final byte[] STRING = AtomType.STRING.qname().local();
   /** Type boolean. */
-  private static final byte[] BOOL = AtomType.BLN.string();
+  private static final byte[] BOOL = AtomType.BOOLEAN.qname().local();
   /** Type date. */
-  private static final byte[] DATE = AtomType.DAT.string();
+  private static final byte[] DATE = AtomType.DATE.qname().local();
   /** Type double. */
-  private static final byte[] DOUBLE = AtomType.DBL.string();
+  private static final byte[] DOUBLE = AtomType.DOUBLE.qname().local();
   /** Type float. */
-  private static final byte[] FLOAT = AtomType.FLT.string();
+  private static final byte[] FLOAT = AtomType.FLOAT.qname().local();
   /** Type short. */
-  private static final byte[] SHORT = AtomType.SHR.string();
+  private static final byte[] SHORT = AtomType.SHORT.qname().local();
   /** Type time. */
-  private static final byte[] TIME = AtomType.TIM.string();
+  private static final byte[] TIME = AtomType.TIME.qname().local();
   /** Type timestamp. */
   private static final byte[] TIMESTAMP = token("timestamp");
   /** Type xml. */

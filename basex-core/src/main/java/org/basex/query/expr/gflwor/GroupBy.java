@@ -19,7 +19,7 @@ import org.basex.util.hash.*;
 /**
  * The GFLWOR {@code group by} expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Leo Woerteler
  */
 public final class GroupBy extends Clause {
@@ -186,18 +186,18 @@ public final class GroupBy extends Clause {
 
   /**
    * Checks two keys for equality.
-   * @param its1 first keys
-   * @param its2 second keys
+   * @param items1 first keys
+   * @param items2 second keys
    * @param coll collations
    * @return {@code true} if the compare as equal, {@code false} otherwise
    * @throws QueryException query exception
    */
-  private boolean eq(final Item[] its1, final Item[] its2, final Collation[] coll)
+  private boolean eq(final Item[] items1, final Item[] items2, final Collation[] coll)
       throws QueryException {
 
-    final int il = its1.length;
+    final int il = items1.length;
     for(int i = 0; i < il; i++) {
-      final Item item1 = its1[i], item2 = its2[i];
+      final Item item1 = items1[i], item2 = items2[i];
       if(item1 == Empty.VALUE ^ item2 == Empty.VALUE ||
          item1 != Empty.VALUE && !item1.equiv(item2, coll[i], info)) return false;
     }
@@ -206,6 +206,9 @@ public final class GroupBy extends Clause {
 
   @Override
   public boolean has(final Flag... flags) {
+    for(final Expr expr : preExpr) {
+      if(expr.has(flags)) return true;
+    }
     for(final GroupSpec spec : specs) {
       if(spec.has(flags)) return true;
     }
@@ -223,8 +226,7 @@ public final class GroupBy extends Clause {
   public GroupBy optimize(final CompileContext cc) throws QueryException {
     final int pl = preExpr.length;
     for(int p = 0; p < pl; p++) {
-      final SeqType st = preExpr[p].seqType();
-      post[p].refineType(st.with(st.occ.union(Occ.ONE_MORE)), cc);
+      post[p].refineType(preExpr[p].seqType().union(Occ.ONE_OR_MORE), cc);
     }
     SeqType st = null;
     for(final GroupSpec spec : specs) {
@@ -235,9 +237,9 @@ public final class GroupBy extends Clause {
   }
 
   @Override
-  public boolean inlineable(final Var var) {
+  public boolean inlineable(final InlineContext ic) {
     for(final GroupSpec spec : specs) {
-      if(!spec.inlineable(var)) return false;
+      if(!spec.inlineable(ic)) return false;
     }
     return true;
   }
@@ -248,10 +250,10 @@ public final class GroupBy extends Clause {
   }
 
   @Override
-  public Clause inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-    // single or: inline both grouping specs and non-grouping variable expressions
-    return inlineAll(ei, ex, specs, cc) | inlineAll(ei, ex, preExpr, cc) ? optimize(cc) : null;
+  public Clause inline(final InlineContext ic) throws QueryException {
+    // inline both grouping specs and non-grouping variable expressions
+    final boolean a = ic.inline(specs), b = ic.inline(preExpr);
+    return a || b ? optimize(ic.cc) : null;
   }
 
   @Override
@@ -265,7 +267,7 @@ public final class GroupBy extends Clause {
     for(int p = 0; p < pl; p++) ps[p] = cc.copy(post[p], vm);
 
     // done
-    return new GroupBy(Arr.copyAll(cc, vm, specs), pEx, ps, nonOcc, info);
+    return copyType(new GroupBy(Arr.copyAll(cc, vm, specs), pEx, ps, nonOcc, info));
   }
 
   @Override
@@ -298,6 +300,18 @@ public final class GroupBy extends Clause {
     return false;
   }
 
+  /**
+   * Returns a group specification that can be rewritten to a distinct-values argument.
+   * @return group specification
+   */
+  GroupSpec group() {
+    if(specs.length == 1 && post.length == 0) {
+      final GroupSpec spec = specs[0];
+      if(spec.coll == null && spec.var.declType == null) return spec;
+    }
+    return null;
+  }
+
   @Override
   public void checkUp() throws QueryException {
     checkNoneUp(preExpr);
@@ -305,7 +319,7 @@ public final class GroupBy extends Clause {
   }
 
   @Override
-  void calcSize(final long[] minMax) {
+  public void calcSize(final long[] minMax) {
     minMax[0] = Math.min(minMax[0], 1);
   }
 
@@ -332,16 +346,11 @@ public final class GroupBy extends Clause {
   }
 
   @Override
-  public String toString() {
-    final StringBuilder sb = new StringBuilder();
+  public void plan(final QueryString qs) {
     final int pl = post.length;
     for(int p = 0; p < pl; p++) {
-      sb.append(LET).append(" (: post-group :) ").append(post[p]);
-      sb.append(' ').append(ASSIGN).append(' ').append(preExpr[p]).append(' ');
+      qs.token(LET).token("(: post-group :)").token(post[p]).token(ASSIGN).token(preExpr[p]);
     }
-    sb.append(GROUP).append(' ').append(BY);
-    final int sl = specs.length;
-    for(int s = 0; s < sl; s++) sb.append(s == 0 ? " " : SEP).append(specs[s]);
-    return sb.toString();
+    qs.token(GROUP).token(BY).tokens(specs, SEP);
   }
 }

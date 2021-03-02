@@ -21,7 +21,7 @@ import org.basex.util.options.*;
 /**
  * If this class is extended, tests will be run in a sandbox.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public abstract class Sandbox {
@@ -288,8 +288,9 @@ public abstract class Sandbox {
   /**
    * Stops a server instance.
    * @param server server
+   * @throws IOException I/O exception
    */
-  public static void stopServer(final BaseXServer server) {
+  public static void stopServer(final BaseXServer server) throws IOException {
     if(server != null) server.stop();
   }
 

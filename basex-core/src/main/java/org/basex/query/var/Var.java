@@ -1,5 +1,6 @@
 package org.basex.query.var;
 
+import static org.basex.query.QueryText.*;
 import static org.basex.query.QueryError.*;
 
 import org.basex.data.*;
@@ -13,7 +14,7 @@ import org.basex.util.*;
 /**
  * Variable expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  * @author Leo Woerteler
  */
@@ -120,7 +121,9 @@ public final class Var extends ExprInfo {
    * @return result of check
    */
   public boolean ddo() {
-    return seqType().zeroOrOne() || ex != null && ex.ddo();
+    if(ex != null) return ex.ddo();
+    final SeqType st = seqType();
+    return st.zeroOrOne() && st.type instanceof NodeType;
   }
 
   /**
@@ -163,7 +166,7 @@ public final class Var extends ExprInfo {
       if(declType.occ.intersect(st.occ) == null)
         throw INVTREAT_X_X_X.get(info, st, declType, Token.concat('$', name.string()));
       if(st.instanceOf(declType)) {
-        if(cc != null) cc.info(QueryText.OPTTYPE_X, this);
+        if(cc != null) cc.info(OPTTYPE_X, this);
         declType = null;
       } else if(!st.promotable(declType)) {
         return;
@@ -174,7 +177,7 @@ public final class Var extends ExprInfo {
     if(!dt.instanceOf(st)) {
       // the new type provides new information
       final SeqType it = dt.intersect(st);
-      if(it != null) exprType.assign(it.type, it.occ, size);
+      if(it != null) exprType.assign(it, size);
     }
   }
 
@@ -287,15 +290,22 @@ public final class Var extends ExprInfo {
     plan.add(plan.attachVariable(plan.create(this), this, true));
   }
 
-  @Override
-  public String toErrorString() {
-    return Strings.concat(QueryText.DOLLAR, name.string());
+  /**
+   * Returns a unique representation of the variable.
+   * @return variable id
+   */
+  public byte[] id() {
+    return Token.concat(DOLLAR, name.string(), "_", id);
   }
 
   @Override
-  public String toString() {
-    final TokenBuilder tb = new TokenBuilder().add(toErrorString()).add('_').addInt(id);
-    if(declType != null) tb.add(' ').add(QueryText.AS).add(' ').add(declType);
-    return tb.toString();
+  public void plan(final QueryString qs) {
+    qs.token(id());
+    if(declType != null) qs.token(AS).token(declType);
+  }
+
+  @Override
+  public String toErrorString() {
+    return Strings.concat(DOLLAR, name.string());
   }
 }

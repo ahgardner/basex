@@ -5,13 +5,14 @@ import java.util.*;
 import org.basex.data.*;
 import org.basex.query.*;
 import org.basex.query.CompileContext.*;
-import org.basex.query.expr.ft.*;
+import org.basex.query.expr.constr.*;
 import org.basex.query.expr.gflwor.*;
 import org.basex.query.expr.path.*;
 import org.basex.query.func.*;
 import org.basex.query.func.fn.*;
 import org.basex.query.func.java.*;
 import org.basex.query.iter.*;
+import org.basex.query.up.expr.*;
 import org.basex.query.util.*;
 import org.basex.query.util.index.*;
 import org.basex.query.value.*;
@@ -27,7 +28,7 @@ import org.basex.util.hash.*;
  * Abstract class for representing XQuery expressions.
  * Expression are divided into {@link ParseExpr} and {@link Value} classes.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public abstract class Expr extends ExprInfo {
@@ -97,7 +98,7 @@ public abstract class Expr extends ExprInfo {
   public Iter atomIter(final QueryContext qc, final InputInfo ii) throws QueryException {
     final Iter iter = iter(qc);
     final SeqType st = seqType();
-    if(st.type.instanceOf(AtomType.AAT)) return iter;
+    if(st.type.instanceOf(AtomType.ANY_ATOMIC_TYPE)) return iter;
     long size = iter.size();
     if(size != -1 && st.mayBeArray()) size = -1;
     return new AtomIter(iter, qc, ii, size);
@@ -207,91 +208,65 @@ public abstract class Expr extends ExprInfo {
   }
 
   /**
-   * Checks if the specified variable is inlineable.
-   * This function is called by:
+   * Checks if inlining is possible.
+   * This function is called by {@link InlineContext#inlineable} and:
+   * {@link CNode#inlineable} returns false if the new expression construct new nodes.
+   *
+   * The following tests might reject inlining if the expression is a context reference:
    * <ul>
-   *   <li> {@link For#toPredicate}</li>
-   *   <li> {@link GFLWOR#inlineLets}</li>
+   *   <li>{@link Preds#inlineable}</li>
+   *   <li>{@link Path#inlineable}</li>
+   *   <li>{@link SimpleMap#inlineable}</li>
+   *   <li>{@link StaticJavaCall#inlineable}</li>
+   *   <li>{@link TransformWith#inlineable}</li>
    * </ul>
-   * The following tests might return false:
-   * <ul>
-   *   <li>{@link Preds#inlineable} if the variable is used in a predicate</li>
-   *   <li>{@link Path#inlineable} if the variable occurs within the path</li>
-   *   <li>{@link SimpleMap#inlineable} if the variable occurs in a right-hand expression</li>
-   * </ul>
-   * @param var variable to be inlined
+   *
+   * @param ic inlining context
    * @return result of check
    */
-  public abstract boolean inlineable(Var var);
+  public abstract boolean inlineable(InlineContext ic);
 
   /**
-   * Checks how often a variable is used in this expression.
+   * Checks how often a variable or context reference is used in this expression.
+   *
    * This function is called by:
    * <ul>
-   *   <li> {@link GFLWOR#simplify}, {@link GFLWOR#inlineLets}, {@link GFLWOR#optimizePos}
-   *     and {@link GFLWOR#unusedVars}</li>
-   *   <li> {@link SwitchGroup#countCases}</li>
+   *   <li> {@link Closure#optimize}</li>
+   *   <li> {@link GFLWOR#inlineLets}</li>
+   *   <li> {@link GFLWOR#optimizePos}</li>
+   *   <li> {@link GFLWOR#simplify}</li>
+   *   <li> {@link GFLWOR#unusedVars}</li>
+   *   <li> {@link SimpleMap#optimize}</li>
+   *   <li> {@link TypeswitchGroup#optimize}</li>
    * </ul>
-   * @param var variable to look for
-   * @return how often the variable is used, see {@link VarUsage}
+   *
+   * @param var variable ({@link Var} reference) or context ({@code null}) to inline
+   * @return number of usages, see {@link VarUsage}
    */
   public abstract VarUsage count(Var var);
 
   /**
    * Inlines an expression into this one, replacing all variable or context references.
-   * This function is called by:
-   * <ul>
-   *   <li> {@link Catch#inline(QueryException, CompileContext)}</li>
-   *   <li> {@link Closure#optimize}</li>
-   *   <li> {@link For#toPredicate}</li>
-   *   <li> {@link GFLWOR#inlineLets}</li>
-   *   <li> {@link TypeswitchGroup#inline}</li>
-   *   <li> {@link SimpleMap#optimize}</li> (for the context)
-   * </ul>
+   * This function is called by {@link InlineContext#inline(Expr)} (see invocations of this
+   * functions for further inlinings).
+   *
    * The variable reference is replaced in:
    * <ul>
-   *   <li> {@link VarRef#inline}</li>
    *   <li> {@link OrderBy#inline}</li>
+   *   <li> {@link VarRef#inline}</li>
    * </ul>
    * The context is replaced in:
    * <ul>
    *   <li> {@link ContextFn#inline}</li>
    *   <li> {@link ContextValue#inline}</li>
    *   <li> {@link Lookup#inline}</li>
-   *   <li> {@link Root#inline}</li>
-   *   <li> {@link StaticJavaCall#inline}</li>
    * </ul>
-   * @param ei variable ({@link Var} reference) or context ({@code null}) to inline
-   * @param ex expression to replace with
-   * @param cc compilation context
-   * @return resulting expression if something changed, {@code null} otherwise
+   *
+   * @param ic inlining context
+   * @return resulting expression if something has changed, {@code null} otherwise
    * @throws QueryException query exception
    */
-  public abstract Expr inline(ExprInfo ei, Expr ex, CompileContext cc) throws QueryException;
-
-  /**
-   * Inlines the given expression into all elements of the given array.
-   * @param ei {@link Var}, {@link Path} or context ({@code null}) to inline
-   * @param expr expression to inline
-   * @param exprs expressions to process
-   * @param cc compilation context
-   * @return {@code true} if the array has changed, {@code false} otherwise
-   * @throws QueryException query exception
-   */
-  protected static boolean inlineAll(final ExprInfo ei, final Expr expr, final Expr[] exprs,
-      final CompileContext cc) throws QueryException {
-
-    boolean changed = false;
-    final int el = exprs.length;
-    for(int e = 0; e < el; e++) {
-      final Expr inlined = exprs[e].inline(ei, expr, cc);
-      if(inlined != null) {
-        exprs[e] = inlined;
-        changed = true;
-      }
-    }
-    return changed;
-  }
+  public abstract Expr inline(InlineContext ic) throws QueryException;
 
   /**
    * Copies an expression. Used for inlining functions, or for copying static queries.
@@ -306,37 +281,17 @@ public abstract class Expr extends ExprInfo {
 
   /**
    * This function is called at compile time for expressions whose operands might be simplified.
-   * Different types of simplifications are supported:
-   * <ul>
-   *   <li> {@link Simplify#EBV}: Simplify effective boolean tests.
-   *     Called by {@link If}, {@link Logical}, {@link Preds}, {@link Condition}, {@link Where},
-   *     {@link FnBoolean}, {@link FnNot}.
-   *     Overwritten by {@link CmpG}, {@link CmpV}, {@link FnBoolean}, {@link FnExists},
-   *     {@link Path} or {@link Filter}
-   *   </li>
-   *   <li> {@link Simplify#ATOM}: Simplify atomizations.
-   *     Called by {@link Cast}, {@link CmpG}, {@link StandardFunc} and many other expressions.
-   *     Overwritten by {@link FnData}, {@link SimpleMap}.
-   *   </li>
-   *   <li> {@link Simplify#NUMBER}: Simplify atomizations for numeric operation.
-   *     Called by {@link Arith}, {@link CmpIR}, {@link FTWeight} and others.
-   *     Overwritten by {@link FnData}, {@link SimpleMap}, {@link FnNumber}.
-   *   </li>
-   *   <li> {@link Simplify#DISTINCT}: Simplify retrieval of distinct values.
-   *     Called by {@link CmpG}, {@link FnDistinctValues} and others.
-   *     Overwritten by {@link SingletonSeq}, {@link SimpleMap}, {@link List} and others.
-   *   </li>
-   * </ul>
    * @param mode mode of simplification
    * @param cc compilation context
    * @return simplified or original expression
+   * @see Simplify
    * @throws QueryException query exception
    */
   @SuppressWarnings("unused")
   public Expr simplifyFor(final Simplify mode, final CompileContext cc) throws QueryException {
     // return true if a deterministic expression returns at least one node
     return (mode == Simplify.EBV || mode == Simplify.PREDICATE) &&
-      seqType().instanceOf(SeqType.NOD_OM) && !has(Flag.NDT) ? cc.simplify(this, Bln.TRUE) : this;
+      seqType().instanceOf(SeqType.NODE_OM) && !has(Flag.NDT) ? cc.simplify(this, Bln.TRUE) : this;
   }
 
   /**
@@ -355,12 +310,29 @@ public abstract class Expr extends ExprInfo {
   }
 
   /**
-   * Indicates if returned nodes are in document order and contain no duplicates.
-   * The function is only called if nodes are processed: {@link Path}, {@link Set}, {@link Filter}.
+   * Indicates if this expression returns nodes in document order without duplicates.
    * @return result of check
    */
   public boolean ddo() {
-    return seqType().zeroOrOne();
+    final SeqType st = seqType();
+    return st.zeroOrOne() && st.type instanceof NodeType;
+  }
+
+  /**
+   * Returns the arguments/operands of an expression (function, list, etc).
+   * @return arguments or {@code null}
+   */
+  public Expr[] args() {
+    return null;
+  }
+
+  /**
+   * Returns the specified argument/operand of an expression (function, list, etc).
+   * @param i index of argument
+   * @return arguments or {@code null}
+   */
+  public final Expr arg(final int i) {
+    return args()[i];
   }
 
   /**
@@ -463,8 +435,7 @@ public abstract class Expr extends ExprInfo {
    * Refines the expression type.
    * @param expr original expression
    */
-  public void refineType(@SuppressWarnings("unused") final Expr expr) {
-  }
+  public abstract void refineType(Expr expr);
 
   /**
    * Tries to push the given type check inside this expression.
@@ -477,6 +448,7 @@ public abstract class Expr extends ExprInfo {
   protected Expr typeCheck(final TypeCheck tc, final CompileContext cc) throws QueryException {
     return null;
   }
+
   /**
    * {@inheritDoc}
    * <div>

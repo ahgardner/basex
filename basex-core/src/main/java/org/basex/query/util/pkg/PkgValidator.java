@@ -13,7 +13,7 @@ import org.basex.util.*;
 /**
  * Package validator. This class executes some essential checks before installing a new package.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Rositsa Shadura
  */
 public final class PkgValidator {
@@ -96,7 +96,7 @@ public final class PkgValidator {
 
     // check if any of the dependencies math
     for(final PkgDep dep : deps) {
-      if(dep.processor.toLowerCase(Locale.ENGLISH).equals(Prop.PROJECT_NAME) &&
+      if(dep.processor.toLowerCase(Locale.ENGLISH).equals(Prop.PROJECT) &&
           availVersion(dep, versions) != null) return;
     }
     throw REPO_VERSION.get(info);

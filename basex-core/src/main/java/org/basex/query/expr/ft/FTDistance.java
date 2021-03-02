@@ -15,7 +15,7 @@ import org.basex.util.hash.*;
 /**
  * FTDistance expression.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class FTDistance extends FTFilter {
@@ -96,8 +96,8 @@ public final class FTDistance extends FTFilter {
   }
 
   @Override
-  public boolean inlineable(final Var var) {
-    return min.inlineable(var) || max.inlineable(var) && super.inlineable(var);
+  public boolean inlineable(final InlineContext ic) {
+    return min.inlineable(ic) || max.inlineable(ic) && super.inlineable(ic);
   }
 
   @Override
@@ -106,18 +106,17 @@ public final class FTDistance extends FTFilter {
   }
 
   @Override
-  public FTExpr inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-    final Expr mn = min.inline(ei, ex, cc), mx = max.inline(ei, ex, cc);
+  public FTExpr inline(final InlineContext ic) throws QueryException {
+    final Expr mn = min.inline(ic), mx = max.inline(ic);
     if(mn != null) min = mn;
     if(mx != null) max = mx;
-    return inlineAll(ei, ex, exprs, cc) || mn != null || mx != null ? optimize(cc) : null;
+    return ic.inline(exprs) || mn != null || mx != null ? optimize(ic.cc) : null;
   }
 
   @Override
   public FTExpr copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new FTDistance(info, exprs[0].copy(cc, vm),
-        min.copy(cc, vm), max.copy(cc, vm), unit);
+    return copyType(new FTDistance(info, exprs[0].copy(cc, vm), min.copy(cc, vm), max.copy(cc, vm),
+        unit));
   }
 
   @Override
@@ -138,7 +137,7 @@ public final class FTDistance extends FTFilter {
   }
 
   @Override
-  public String toString() {
-    return super.toString() + DISTANCE + PAREN1 + min + '-' + max + ' ' + unit + PAREN2;
+  public void plan(final QueryString qs) {
+    qs.token(exprs[0]).token(DISTANCE).paren(min + "-" + max + ' ' + unit);
   }
 }

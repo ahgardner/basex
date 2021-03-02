@@ -24,10 +24,14 @@ import org.basex.util.http.*;
 /**
  * Single HTTP connection.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class HTTPConnection implements ClientInfo {
+  /** Forwarding headers. */
+  private static final String[] FORWARDING_HEADERS = { "X-Forwarded-For", "Proxy-Client-IP",
+      "WL-Proxy-Client-IP", "HTTP_CLIENT_IP", "HTTP_X_FORWARDED_FOR" };
+
   /** HTTP servlet request. */
   public final HttpServletRequest request;
   /** HTTP servlet response. */
@@ -99,21 +103,22 @@ public final class HTTPConnection implements ClientInfo {
   }
 
   /**
-   * Returns the content type of a request, or an empty string.
+   * Returns the content type of a request as media type.
    * @return content type
    */
-  public MediaType contentType() {
+  public MediaType mediaType() {
     return mediaType(request);
   }
 
   /**
-   * Initializes the output. Sets the expected encoding and content type.
+   * Initializes the output and assigns the character encoding and content type.
    */
   public void initResponse() {
-    final SerializerOptions opts = sopts();
-    final String encoding = opts.get(SerializerOptions.ENCODING);
-    final MediaType mt = new MediaType(mediaType(opts) + "; " + CHARSET + '=' + encoding);
-    response.setCharacterEncoding(encoding);
+    final SerializerOptions sopts = sopts();
+    final MediaType mt = mediaType(sopts);
+    final HashMap<String, String> params = mt.parameters();
+    params.putIfAbsent(CHARSET, sopts.get(SerializerOptions.ENCODING));
+    response.setCharacterEncoding(params.get(CHARSET));
     response.setContentType(mt.toString());
   }
 
@@ -205,7 +210,7 @@ public final class HTTPConnection implements ClientInfo {
    * @param info info string (can be {@code null})
    */
   public void log(final int status, final String info) {
-    context.log.write(Integer.toString(status), info, perf, context);
+    context.log.write(status, info, perf, context);
   }
 
   /**
@@ -243,7 +248,7 @@ public final class HTTPConnection implements ClientInfo {
 
   @Override
   public String clientAddress() {
-    return request.getRemoteAddr() + ':' + request.getRemotePort();
+    return getRemoteAddr() + ':' + request.getRemotePort();
   }
 
   @Override
@@ -260,137 +265,6 @@ public final class HTTPConnection implements ClientInfo {
       }
     }
     return clientName(value, context);
-  }
-
-  /**
-   * Returns the media type defined in the specified serialization parameters.
-   * @param sopts serialization parameters
-   * @return media type
-   */
-  public static MediaType mediaType(final SerializerOptions sopts) {
-    // set content type
-    final String type = sopts.get(SerializerOptions.MEDIA_TYPE);
-    if(!type.isEmpty()) return new MediaType(type);
-
-    // determine content type dependent on output method
-    final SerialMethod sm = sopts.get(SerializerOptions.METHOD);
-    if(sm == SerialMethod.BASEX || sm == SerialMethod.ADAPTIVE || sm == SerialMethod.XML)
-      return MediaType.APPLICATION_XML;
-    if(sm == SerialMethod.XHTML || sm == SerialMethod.HTML) return MediaType.TEXT_HTML;
-    if(sm == SerialMethod.JSON) return MediaType.APPLICATION_JSON;
-    return MediaType.TEXT_PLAIN;
-  }
-
-  /**
-   * Returns the content type of a request, or an empty string.
-   * @param request servlet request
-   * @return content type
-   */
-  public static MediaType mediaType(final HttpServletRequest request) {
-    final String ct = request.getContentType();
-    return new MediaType(ct == null ? "" : ct);
-  }
-
-  // PRIVATE METHODS ==============================================================================
-
-  /**
-   * Normalizes the specified path.
-   * @param path path (can be {@code null})
-   * @return normalized path
-   */
-  private static String normalize(final String path) {
-    final TokenBuilder tmp = new TokenBuilder();
-    if(path != null) {
-      final TokenBuilder tb = new TokenBuilder();
-      final int pl = path.length();
-      for(int p = 0; p < pl; p++) {
-        final char ch = path.charAt(p);
-        if(ch == '/') {
-          if(tb.isEmpty()) continue;
-          tmp.add('/').add(tb.toArray());
-          tb.reset();
-        } else {
-          tb.add(ch);
-        }
-      }
-      if(!tb.isEmpty()) tmp.add('/').add(tb.finish());
-    }
-    if(tmp.isEmpty()) tmp.add('/');
-    return tmp.toString();
-  }
-
-  /**
-   * Authenticates the user and returns a {@link User} instance or an exception.
-   * @return user
-   * @throws IOException I/O exception
-   */
-  private User login() throws IOException {
-    final byte[] address = token(request.getRemoteAddr());
-    try {
-      final User user;
-      if(auth == AuthMethod.CUSTOM) {
-        // custom authentication
-        user = user(UserText.ADMIN);
-      } else {
-        // request authorization header, check authentication method
-        final String header = request.getHeader(AUTHORIZATION);
-        final String[] am = header != null ? Strings.split(header, ' ', 2) : new String[] { "" };
-        final AuthMethod meth = StaticOptions.AUTHMETHOD.get(am[0]);
-        if(auth != meth) throw new LoginException(HTTPText.WRONGAUTH_X, auth);
-
-        if(auth == AuthMethod.BASIC) {
-          final String details = am.length > 1 ? am[1] : "";
-          final String[] creds = Strings.split(Base64.decode(details), ':', 2);
-          user = user(creds[0]);
-          if(creds.length < 2 || !user.matches(creds[1])) throw new LoginException();
-
-        } else {
-          final EnumMap<Request, String> map = HttpClient.authHeaders(header);
-          user = user(map.get(Request.USERNAME));
-
-          final String nonce = map.get(Request.NONCE), cnonce = map.get(Request.CNONCE);
-          String ha1 = user.code(Algorithm.DIGEST, Code.HASH);
-          if(Strings.eq(map.get(Request.ALGORITHM), MD5_SESS))
-            ha1 = Strings.md5(ha1 + ':' + nonce + ':' + cnonce);
-
-          String h2 = method + ':' + map.get(Request.URI);
-          final String qop = map.get(Request.QOP);
-          if(Strings.eq(qop, AUTH_INT)) h2 += ':' + Strings.md5(requestCtx.payload().toString());
-          final String ha2 = Strings.md5(h2);
-
-          final StringBuilder sb = new StringBuilder(ha1).append(':').append(nonce);
-          if(Strings.eq(qop, AUTH, AUTH_INT)) {
-            sb.append(':').append(map.get(Request.NC));
-            sb.append(':').append(cnonce).append(':').append(qop);
-          }
-          sb.append(':').append(ha2);
-
-          if(!Strings.md5(sb.toString()).equals(map.get(Request.RESPONSE)))
-            throw new LoginException();
-        }
-      }
-
-      // accept and return user
-      context.blocker.remove(address);
-      return user;
-
-    } catch(final LoginException ex) {
-      // delay users with wrong passwords
-      context.blocker.delay(address);
-      throw ex;
-    }
-  }
-
-  /**
-   * Returns a user for the specified string, or an error.
-   * @param user user name (can be {@code null})
-   * @return user reference
-   * @throws LoginException login exception
-   */
-  private User user(final String user) throws LoginException {
-    final User u = context.users.get(user);
-    if(u == null) throw new LoginException();
-    return u;
   }
 
   /**
@@ -455,6 +329,157 @@ public final class HTTPConnection implements ClientInfo {
     } catch(final IllegalStateException | IllegalArgumentException ex) {
       logError(code, message, body, ex);
     }
+  }
+
+  /**
+   * Returns the media type defined in the specified serialization parameters.
+   * @param sopts serialization parameters
+   * @return media type
+   */
+  public static MediaType mediaType(final SerializerOptions sopts) {
+    // set content type
+    final String type = sopts.get(SerializerOptions.MEDIA_TYPE);
+    if(!type.isEmpty()) return new MediaType(type);
+
+    // determine content type dependent on output method
+    final SerialMethod sm = sopts.get(SerializerOptions.METHOD);
+    if(sm == SerialMethod.BASEX || sm == SerialMethod.ADAPTIVE || sm == SerialMethod.XML)
+      return MediaType.APPLICATION_XML;
+    if(sm == SerialMethod.XHTML || sm == SerialMethod.HTML) return MediaType.TEXT_HTML;
+    if(sm == SerialMethod.JSON) return MediaType.APPLICATION_JSON;
+    return MediaType.TEXT_PLAIN;
+  }
+
+  /**
+   * Returns the content type of a request as media type.
+   * @param request servlet request
+   * @return content type
+   */
+  public static MediaType mediaType(final HttpServletRequest request) {
+    final String ct = request.getContentType();
+    return ct == null ? MediaType.ALL_ALL : new MediaType(ct);
+  }
+
+  /**
+   * Returns the content type of a request, or an empty string.
+   * @param request servlet request
+   * @return content type
+   */
+  public static String remoteAddress(final HttpServletRequest request) {
+    for(final String header : FORWARDING_HEADERS) {
+      final String addr = request.getHeader(header);
+      if (addr != null && !addr.isEmpty() && !"unknown".equalsIgnoreCase(addr)) return addr;
+    }
+    return request.getRemoteAddr();
+  }
+
+  // PRIVATE METHODS ==============================================================================
+
+  /**
+   * Normalizes the specified path.
+   * @param path path (can be {@code null})
+   * @return normalized path
+   */
+  private static String normalize(final String path) {
+    final TokenBuilder tmp = new TokenBuilder();
+    if(path != null) {
+      final TokenBuilder tb = new TokenBuilder();
+      final int pl = path.length();
+      for(int p = 0; p < pl; p++) {
+        final char ch = path.charAt(p);
+        if(ch == '/') {
+          if(tb.isEmpty()) continue;
+          tmp.add('/').add(tb.toArray());
+          tb.reset();
+        } else {
+          tb.add(ch);
+        }
+      }
+      if(!tb.isEmpty()) tmp.add('/').add(tb.finish());
+    }
+    if(tmp.isEmpty()) tmp.add('/');
+    return tmp.toString();
+  }
+
+  /**
+   * Authenticates the user and returns a {@link User} instance or an exception.
+   * @return user
+   * @throws IOException I/O exception
+   */
+  private User login() throws IOException {
+    try {
+      final User user;
+      if(auth == AuthMethod.CUSTOM) {
+        // custom authentication
+        user = user(UserText.ADMIN);
+      } else {
+        // request authorization header, check authentication method
+        final String header = request.getHeader(AUTHORIZATION);
+        final String[] am = header != null ? Strings.split(header, ' ', 2) : new String[] { "" };
+        final AuthMethod meth = StaticOptions.AUTHMETHOD.get(am[0]);
+        if(auth != meth) throw new LoginException(HTTPText.WRONGAUTH_X, auth);
+
+        if(auth == AuthMethod.BASIC) {
+          final String details = am.length > 1 ? am[1] : "";
+          final String[] creds = Strings.split(Base64.decode(details), ':', 2);
+          user = user(creds[0]);
+          if(creds.length < 2 || !user.matches(creds[1])) throw new LoginException(user.name());
+
+        } else {
+          final EnumMap<Request, String> map = HttpClient.authHeaders(header);
+          user = user(map.get(Request.USERNAME));
+
+          final String nonce = map.get(Request.NONCE), cnonce = map.get(Request.CNONCE);
+          String ha1 = user.code(Algorithm.DIGEST, Code.HASH);
+          if(Strings.eq(map.get(Request.ALGORITHM), MD5_SESS))
+            ha1 = Strings.md5(ha1 + ':' + nonce + ':' + cnonce);
+
+          String h2 = method + ':' + map.get(Request.URI);
+          final String qop = map.get(Request.QOP);
+          if(Strings.eq(qop, AUTH_INT)) h2 += ':' + Strings.md5(requestCtx.payload().toString());
+          final String ha2 = Strings.md5(h2);
+
+          final StringBuilder sb = new StringBuilder(ha1).append(':').append(nonce);
+          if(Strings.eq(qop, AUTH, AUTH_INT)) {
+            sb.append(':').append(map.get(Request.NC));
+            sb.append(':').append(cnonce).append(':').append(qop);
+          }
+          sb.append(':').append(ha2);
+
+          if(!Strings.md5(sb.toString()).equals(map.get(Request.RESPONSE)))
+            throw new LoginException(user.name());
+        }
+      }
+
+      // accept and return user
+      context.blocker.remove(token(getRemoteAddr()));
+      return user;
+
+    } catch(final LoginException ex) {
+      // delay users with wrong passwords
+      context.blocker.delay(token(getRemoteAddr()));
+      throw ex;
+    }
+  }
+
+  /**
+   * Returns a user for the specified string, or an error.
+   * @param name user name (can be {@code null})
+   * @return user reference
+   * @throws LoginException login exception
+   */
+  private User user(final String name) throws LoginException {
+    final User user = context.users.get(name);
+    if(user == null) throw new LoginException(name);
+    return user;
+  }
+
+  /**
+   * Returns the remote address. Resolves proxy forwardings.
+   * @return client address
+   */
+  private String getRemoteAddr() {
+    return remoteAddress(request);
   }
 
   /**

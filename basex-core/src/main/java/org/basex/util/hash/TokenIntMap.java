@@ -9,7 +9,7 @@ import org.basex.io.out.DataOutput;
 /**
  * This is an efficient and memory-saving hash map for storing tokens and integers.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class TokenIntMap extends TokenSet {
@@ -64,6 +64,13 @@ public final class TokenIntMap extends TokenSet {
   public int get(final byte[] key) {
     final int i = id(key);
     return i == 0 ? -1 : values[i];
+  }
+
+  @Override
+  public int remove(final byte[] key) {
+    final int i = super.remove(key);
+    values[i] = -1;
+    return i;
   }
 
   @Override

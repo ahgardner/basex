@@ -16,7 +16,7 @@ import org.basex.util.hash.*;
 /**
  * This class defines a dynamic database source for index operations.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class IndexDynDb extends IndexDb {
@@ -49,8 +49,8 @@ public final class IndexDynDb extends IndexDb {
   }
 
   @Override
-  public boolean inlineable(final Var var) {
-    return expr.inlineable(var);
+  public boolean inlineable(final InlineContext ic) {
+    return expr.inlineable(ic);
   }
 
   @Override
@@ -59,9 +59,8 @@ public final class IndexDynDb extends IndexDb {
   }
 
   @Override
-  public IndexDb inline(final ExprInfo ei, final Expr ex, final CompileContext cc)
-      throws QueryException {
-    final Expr inlined = expr.inline(ei, ex, cc);
+  public IndexDb inline(final InlineContext ic) throws QueryException {
+    final Expr inlined = expr.inline(ic);
     if(inlined == null) return null;
     expr = inlined;
     return this;
@@ -79,14 +78,14 @@ public final class IndexDynDb extends IndexDb {
 
   @Override
   public IndexDynDb copy(final CompileContext cc, final IntObjMap<Var> vm) {
-    return new IndexDynDb(expr.copy(cc, vm), info);
+    return copyType(new IndexDynDb(expr.copy(cc, vm), info));
   }
 
   @Override
   Data data(final QueryContext qc) throws QueryException {
     final Value value = expr.value(qc);
     final Data data = value.data();
-    if(data == null || !value.seqType().type.instanceOf(NodeType.DOC))
+    if(data == null || !value.seqType().type.instanceOf(NodeType.DOCUMENT_NODE))
       throw DB_NODE_X.get(info, value);
     return data;
   }
@@ -102,7 +101,7 @@ public final class IndexDynDb extends IndexDb {
   }
 
   @Override
-  public String toString() {
-    return Function._DB_NAME.args(expr);
+  public void plan(final QueryString qs) {
+    qs.function(Function._DB_NAME, expr);
   }
 }

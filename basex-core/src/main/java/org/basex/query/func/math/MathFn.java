@@ -7,12 +7,12 @@ import org.basex.query.func.*;
 /**
  * Math function.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public abstract class MathFn extends StandardFunc {
   @Override
-  protected final Expr opt(final CompileContext cc) {
+  protected Expr opt(final CompileContext cc) throws QueryException {
     return optFirst();
   }
 }

@@ -2,13 +2,14 @@ package org.basex.query.ann;
 
 import static org.basex.query.QueryText.*;
 
+import org.basex.query.*;
 import org.basex.query.value.item.*;
 import org.basex.util.*;
 
 /**
  * Annotation.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class Ann {
@@ -72,11 +73,12 @@ public final class Ann {
         Array.equals(args, ann.args);
   }
 
-  @Override
-  public String toString() {
-    final TokenBuilder tb = new TokenBuilder().add('%');
-    tb.add(sig != null ? sig.id() : name.prefixId(XQ_URI));
-    if(args.length != 0) tb.add('(').addSeparated(args, SEP).add(')');
-    return tb.add(' ').toString();
+  /**
+   * Adds the annotation to a query string.
+   * @param qs query string builder
+   */
+  public void plan(final QueryString qs) {
+    qs.concat("%", sig != null ? sig.id() : name.prefixId(XQ_URI));
+    if(args.length != 0) qs.params(args);
   }
 }

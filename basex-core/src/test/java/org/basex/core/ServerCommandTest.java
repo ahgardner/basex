@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 /**
  * This class tests the database commands with the client/server architecture.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public final class ServerCommandTest extends CommandTest {
@@ -34,8 +34,9 @@ public final class ServerCommandTest extends CommandTest {
 
   /**
    * Stops the server.
+   * @throws IOException I/O exception
    */
-  @AfterAll public static void stop() {
+  @AfterAll public static void stop() throws IOException {
     try {
       if(session != null) session.close();
     } catch(final Exception ex) {

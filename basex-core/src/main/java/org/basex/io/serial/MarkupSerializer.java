@@ -22,7 +22,7 @@ import org.basex.util.options.*;
 /**
  * This class serializes items to in a markup language.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 abstract class MarkupSerializer extends StandardSerializer {
@@ -30,8 +30,6 @@ abstract class MarkupSerializer extends StandardSerializer {
   String docsys;
   /** Public document type. */
   String docpub;
-  /** Flag for printing content type. */
-  int ct;
 
   /** Indicates if root element has been serialized. */
   boolean root;
@@ -282,8 +280,8 @@ abstract class MarkupSerializer extends StandardSerializer {
   protected abstract void doctype(byte[] type) throws IOException;
 
   @Override
-  protected boolean ignore(final ANode node) {
-    if(ct > 0 && node.type == NodeType.ELM && eq(node.name(), META)) {
+  protected boolean skipElement(final ANode node) {
+    if(node.type == NodeType.ELEMENT && eq(node.name(), META)) {
       final byte[] value = node.attribute(HTTP_EQUIV);
       return value != null && eq(trim(value), CONTENT_TYPE);
     }
@@ -336,14 +334,14 @@ abstract class MarkupSerializer extends StandardSerializer {
    * @throws IOException I/O exception
    */
   protected final boolean printCT(final boolean empty, final boolean html) throws IOException {
-    if(ct != 1) return false;
-    ct++;
+    if(skip != 1) return false;
+    skip++;
     if(empty) finishOpen();
     level++;
     startOpen(new QNm(META));
     attribute(HTTP_EQUIV, CONTENT_TYPE, false);
     attribute(CONTENT, concat(media.isEmpty() ? MediaType.TEXT_HTML : media, "; ",
-      CHARSET, '=', encoding), false);
+      CHARSET, "=", encoding), false);
     if(html) {
       out.print(ELEM_C);
     } else {

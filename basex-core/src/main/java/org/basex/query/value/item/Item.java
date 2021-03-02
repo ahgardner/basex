@@ -1,6 +1,5 @@
 package org.basex.query.value.item;
 
-import static org.basex.data.DataText.*;
 import static org.basex.query.QueryError.*;
 import static org.basex.query.QueryText.*;
 
@@ -24,14 +23,12 @@ import org.basex.util.*;
 /**
  * Abstract super class for all items.
  *
- * @author BaseX Team 2005-20, BSD License
+ * @author BaseX Team 2005-21, BSD License
  * @author Christian Gruen
  */
 public abstract class Item extends Value {
   /** Undefined item. */
   public static final int UNDEF = Integer.MIN_VALUE;
-  /** Score value. {@code null} reference takes less memory on 32bit than a double. */
-  protected Double score;
 
   /**
    * Constructor.
@@ -157,12 +154,8 @@ public abstract class Item extends Value {
    * @param item item to be compared
    * @return result of check
    */
-  public final boolean comparable(final Item item) {
-    final Type type1 = type, type2 = item.type;
-    return type1 == type2
-        || type1.isStringOrUntyped() && type2.isStringOrUntyped()
-        || this instanceof ANum && item instanceof ANum
-        || this instanceof Dur && item instanceof Dur;
+  public boolean comparable(final Item item) {
+    return type == item.type;
   }
 
   /**
@@ -216,8 +209,7 @@ public abstract class Item extends Value {
    * @throws QueryException query exception
    */
   @SuppressWarnings("unused")
-  public int diff(final Item item, final Collation coll, final InputInfo ii)
-      throws QueryException {
+  public int diff(final Item item, final Collation coll, final InputInfo ii) throws QueryException {
     throw diffError(this, item, ii);
   }
 
@@ -292,8 +284,12 @@ public abstract class Item extends Value {
   }
 
   @Override
-  public final boolean ddo() {
-    return true;
+  public void refineType(final Expr expr) {
+  }
+
+  @Override
+  public boolean ddo() {
+    return type instanceof NodeType;
   }
 
   /**
@@ -310,16 +306,7 @@ public abstract class Item extends Value {
    * @return score value
    */
   public double score() {
-    final Double s = score;
-    return s == null ? 0 : s;
-  }
-
-  /**
-   * Sets a new score value (do not assign if value is 0).
-   * @param s score value
-   */
-  public final void score(final double s) {
-    if(s != 0) score = s;
+    return 0;
   }
 
   @Override
@@ -345,40 +332,6 @@ public abstract class Item extends Value {
     return type.id();
   }
 
-  /**
-   * Returns a chopped and quoted token representation of the specified value.
-   * @param value value
-   * @return token
-   */
-  public static byte[] toQuotedToken(final byte[] value) {
-    return toToken(value, true, true);
-  }
-
-  /**
-   * Returns a chopped token representation of the specified value.
-   * @param value value
-   * @param quotes wrap with quotes
-   * @param limit limit output
-   * @return token
-   */
-  public static byte[] toToken(final byte[] value, final boolean quotes, final boolean limit) {
-    final TokenBuilder tb = new TokenBuilder();
-    if(quotes) tb.add('"');
-    for(final byte v : value) {
-      if(limit && tb.size() > 127) {
-        tb.add(DOTS);
-        break;
-      }
-      if(v == '&') tb.add(E_AMP);
-      else if(v == '\r') tb.add(E_CR);
-      else if(v == '\n') tb.add(E_NL);
-      else if(v == '"' && quotes) tb.add('"').add('"');
-      else tb.addByte(v);
-    }
-    if(quotes) tb.add('"');
-    return tb.finish();
-  }
-
   @Override
   public String description() {
     return type + " " + ITEM;
@@ -387,7 +340,7 @@ public abstract class Item extends Value {
   @Override
   public void plan(final QueryPlan plan) {
     try {
-      plan.add(plan.create(this), toToken(string(null), false, true));
+      plan.add(plan.create(this), QueryString.toValue(string(null)));
     } catch(final QueryException ex) {
       // only function items throw exceptions in atomization, and they should
       // override plan(Serializer) sensibly
